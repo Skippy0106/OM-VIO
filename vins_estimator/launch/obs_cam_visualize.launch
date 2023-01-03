@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find vins_estimator)/../config/obs_cam_visualize_config.rviz"/>
+    <node name="rqtplotvisualisation" pkg="rqt_plot" type="rqt_plot" args="/vins_estimator/observation_matrix"/>
+</launch>
