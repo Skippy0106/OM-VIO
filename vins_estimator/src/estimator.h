@@ -68,6 +68,7 @@ class Estimator
 #if two_cam_test
     vector<pair<int, cv::Point2f>> sameId_pts[2];
     vector<double> pts_observability[2];
+    vector<double> pts_all_observability;
 #else
     vector<pair<int, cv::Point2f>> sameId_pts;
     vector<double> pts_observability;
@@ -80,6 +81,9 @@ class Estimator
     // standard derivative params
 #if two_cam_test
     double mean[2], stdev[2];
+    double all_mean = 0;
+    double all_stdev = 0;
+    double obs_sum = 0;
 #else
     double mean, stdev;
 #endif
@@ -120,9 +124,11 @@ class Estimator
     Vector3d Bas[(WINDOW_SIZE + 1)];
     Vector3d Bgs[(WINDOW_SIZE + 1)];
     double td;
-
+    
     Matrix3d back_R0, last_R, last_R0;
     Vector3d back_P0, last_P, last_P0;
+    // sliding window for OBS 
+    double last_OBS;
     std_msgs::Header Headers[(WINDOW_SIZE + 1)];
 
     IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];

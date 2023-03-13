@@ -157,7 +157,7 @@ void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<doubl
     }
 
 #if two_cam_test
-f_manager.main_cam = f_manager.CAM0;
+f_manager.main_cam = f_manager.ALL_CAM;
 //f_manager.main_cam = f_manager.CAM1;
 //std::cout<<"main_cam= "<<f_manager.main_cam<<std::endl;
 #endif
@@ -183,7 +183,6 @@ f_manager.main_cam = f_manager.CAM0;
                 last_P = Ps[WINDOW_SIZE];
                 last_R0 = Rs[0];
                 last_P0 = Ps[0];
-                
             }
             else
                 slideWindow();
@@ -274,6 +273,9 @@ bool Estimator::initialStructure()
         SFMFeature tmp_feature;
         tmp_feature.state = false;
         tmp_feature.id = it_per_id.feature_id;
+        // for initial two camera asign camera id 
+        tmp_feature.camera_id = it_per_id.feature_per_frame[0].camera_id;
+
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
             imu_j++;
@@ -310,23 +312,33 @@ bool Estimator::initialStructure()
         cv::Mat r, rvec, t, D, tmp_r;
         if((frame_it->first) == Headers[i].stamp.toSec())
         {
-            frame_it->second.is_key_frame = true;
+            frame_it->second.is_key_frame = true; 
+// #if two_cam_test
+//             if (f_manager.main_cam == f_manager.CAM0)
+//             {
+//                 frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
+//             }
+//             else if (f_manager.main_cam == f_manager.CAM1)
+//                 frame_it->second.R = Q[i].toRotationMatrix() * RIC[1].transpose();
+// #else
+//             frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
+// #endif
 
-#if two_cam_test
-            if (f_manager.main_cam == f_manager.CAM0)
+// test for two camera initialization 
+            if(frame_it->second.points.begin()->first==0)
             {
                 frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
             }
-            else if (f_manager.main_cam == f_manager.CAM1)
-                frame_it->second.R = Q[i].toRotationMatrix() * RIC[1].transpose();
-#else
-            frame_it->second.R = Q[i].toRotationMatrix() * RIC[0].transpose();
-#endif
-
+            else if (frame_it->second.points.begin()->first==1)
+            {
+                 frame_it->second.R = Q[i].toRotationMatrix() * RIC[1].transpose();
+            }
             frame_it->second.T = T[i];
             i++;
             continue;
         }
+
+
         if((frame_it->first) > Headers[i].stamp.toSec())
         {
             i++;
@@ -386,17 +398,24 @@ bool Estimator::initialStructure()
         cv::cv2eigen(t, T_pnp);
         T_pnp = R_pnp * (-T_pnp);
 
-#if two_cam_test
-        if (f_manager.main_cam == f_manager.CAM0)
+// #if two_cam_test
+//         if (f_manager.main_cam == f_manager.CAM0)
+//         {
+//             frame_it->second.R = R_pnp * RIC[0].transpose();
+//         }
+//         else if (f_manager.main_cam == f_manager.CAM1)
+//             frame_it->second.R = R_pnp * RIC[1].transpose();
+// #else
+//         frame_it->second.R = R_pnp * RIC[0].transpose();
+// #endif
+        if(frame_it->second.points.begin()->first==0)
         {
             frame_it->second.R = R_pnp * RIC[0].transpose();
         }
-        else if (f_manager.main_cam == f_manager.CAM1)
+        else if(frame_it->second.points.begin()->first==1)
+        {
             frame_it->second.R = R_pnp * RIC[1].transpose();
-#else
-        frame_it->second.R = R_pnp * RIC[0].transpose();
-#endif
-
+        }
         frame_it->second.T = T_pnp;
     }
     if (visualInitialAlign())
@@ -447,24 +466,29 @@ bool Estimator::visualInitialAlign()
     for(int i = 0; i < NUM_OF_CAM; i++)
         TIC_TMP[i].setZero();
 
-#if two_cam_test
-    if (f_manager.main_cam == f_manager.CAM0)
-    {
-        ric[0] = RIC[0];
-        f_manager.setRic(ric);
-        f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
-    }
-    else if (f_manager.main_cam == f_manager.CAM1)
-    {
-        ric[1] = RIC[1];
-        f_manager.setRic(ric);
-        f_manager.triangulate(Ps, &(TIC_TMP[1]), &(RIC[1]));
-    }
-#else
+// #if two_cam_test
+//     if (f_manager.main_cam == f_manager.CAM0)
+//     {
+//         ric[0] = RIC[0];
+//         f_manager.setRic(ric);
+//         f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
+//     }
+//     else if (f_manager.main_cam == f_manager.CAM1)
+//     {
+//         ric[1] = RIC[1];
+//         f_manager.setRic(ric);
+//         f_manager.triangulate(Ps, &(TIC_TMP[1]), &(RIC[1]));
+//     }
+// #else
+//     ric[0] = RIC[0];
+//     f_manager.setRic(ric);
+//     f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
+// #endif
+    //asign extrinsic 
     ric[0] = RIC[0];
+    ric[1] = RIC[1];
     f_manager.setRic(ric);
-    f_manager.triangulate(Ps, &(TIC_TMP[0]), &(RIC[0]));
-#endif
+    f_manager.triangulate(Ps,&(TIC_TMP[0]),&(RIC[0]));
 
     double s = (x.tail<1>())(0);
     for (int i = 0; i <= WINDOW_SIZE; i++)
@@ -472,21 +496,34 @@ bool Estimator::visualInitialAlign()
         pre_integrations[i]->repropagate(Vector3d::Zero(), Bgs[i]);
     }
 
-#if two_cam_test
-    if (f_manager.main_cam == f_manager.CAM0)
+// #if two_cam_test
+//     if (f_manager.main_cam == f_manager.CAM0)
+//     {
+//         for (int i = frame_count; i >= 0; i--)
+//             Ps[i] = s * Ps[i] - Rs[i] * TIC[0] - (s * Ps[0] - Rs[0] * TIC[0]);
+//     }
+//     else if (f_manager.main_cam == f_manager.CAM1)
+//     {
+//         for (int i = frame_count; i >= 0; i--)
+//             Ps[i] = s * Ps[i] - Rs[i] * TIC[1] - (s * Ps[0] - Rs[0] * TIC[1]);
+//     }
+// #else
+//     for (int i = frame_count; i >= 0; i--)
+//         Ps[i] = s * Ps[i] - Rs[i] * TIC[0] - (s * Ps[0] - Rs[0] * TIC[0]);
+// #endif
+    
+    for (int i =  frame_count; i >= 0; i--)
     {
-        for (int i = frame_count; i >= 0; i--)
+        if(all_image_frame[Headers[i].stamp.toSec()].points.begin()->first==0)
+        {
             Ps[i] = s * Ps[i] - Rs[i] * TIC[0] - (s * Ps[0] - Rs[0] * TIC[0]);
-    }
-    else if (f_manager.main_cam == f_manager.CAM1)
-    {
-        for (int i = frame_count; i >= 0; i--)
+        }
+        else if (all_image_frame[Headers[i].stamp.toSec()].points.begin()->first==1)
+        {
             Ps[i] = s * Ps[i] - Rs[i] * TIC[1] - (s * Ps[0] - Rs[0] * TIC[1]);
+        }
     }
-#else
-    for (int i = frame_count; i >= 0; i--)
-        Ps[i] = s * Ps[i] - Rs[i] * TIC[0] - (s * Ps[0] - Rs[0] * TIC[0]);
-#endif
+    
 
     int kv = -1;
     map<double, ImageFrame>::iterator frame_i;
@@ -577,9 +614,9 @@ void Estimator::solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<doub
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
 //        std::cout << "=================== optimization ===================" << std::endl;
         optimization();
-        //obs_trace(image, header);
+        obs_trace(image, header);
 //        std::cout << "=================== optimization_obs ===================" << std::endl;
-        //optimization_obs();
+        optimization_obs();
     }
 }
 void Estimator::vector2double()
@@ -1082,7 +1119,7 @@ void Estimator::optimization()
             f_m_cnt++;
         }
     }
-    ROS_INFO("feature points number: %d",valid_feature);
+    //ROS_INFO("1st measurement count: %d", f_m_cnt);
     ROS_DEBUG("visual measurement count: %d", f_m_cnt);
     ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
 
@@ -1157,200 +1194,200 @@ void Estimator::optimization()
     double2vector();
 
 //  marginalize two camera
-    TicToc t_whole_marginalization;
-    if (marginalization_flag == MARGIN_OLD)
-    {
-        MarginalizationInfo *marginalization_info = new MarginalizationInfo();
-        vector2double();
+//     TicToc t_whole_marginalization;
+//     if (marginalization_flag == MARGIN_OLD)
+//     {
+//         MarginalizationInfo *marginalization_info = new MarginalizationInfo();
+//         vector2double();
 
-        if (last_marginalization_info)
-        {
-            vector<int> drop_set;
-            for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
-            {
-                if (last_marginalization_parameter_blocks[i] == para_Pose[0] ||
-                    last_marginalization_parameter_blocks[i] == para_SpeedBias[0])
-                    drop_set.push_back(i);
-            }
-            // construct new marginlization_factor
-            MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
-            ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
-                                                                           last_marginalization_parameter_blocks,
-                                                                           drop_set);
+//         if (last_marginalization_info)
+//         {
+//             vector<int> drop_set;
+//             for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
+//             {
+//                 if (last_marginalization_parameter_blocks[i] == para_Pose[0] ||
+//                     last_marginalization_parameter_blocks[i] == para_SpeedBias[0])
+//                     drop_set.push_back(i);
+//             }
+//             // construct new marginlization_factor
+//             MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
+//             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
+//                                                                            last_marginalization_parameter_blocks,
+//                                                                            drop_set);
 
-            marginalization_info->addResidualBlockInfo(residual_block_info);
-        }
+//             marginalization_info->addResidualBlockInfo(residual_block_info);
+//         }
 
-        {
-            if (pre_integrations[1]->sum_dt < 10.0)
-            {
-                IMUFactor* imu_factor = new IMUFactor(pre_integrations[1]);
-                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
-                                                                           vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
-                                                                           vector<int>{0, 1});
-                marginalization_info->addResidualBlockInfo(residual_block_info);
-            }
-        }
+//         {
+//             if (pre_integrations[1]->sum_dt < 10.0)
+//             {
+//                 IMUFactor* imu_factor = new IMUFactor(pre_integrations[1]);
+//                 ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(imu_factor, NULL,
+//                                                                            vector<double *>{para_Pose[0], para_SpeedBias[0], para_Pose[1], para_SpeedBias[1]},
+//                                                                            vector<int>{0, 1});
+//                 marginalization_info->addResidualBlockInfo(residual_block_info);
+//             }
+//         }
 
-        {
-            int feature_index = -1;
-            for (auto &it_per_id : f_manager.feature)
-            {
-                it_per_id.used_num = it_per_id.feature_per_frame.size();
-                if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
-                    continue;
+//         {
+//             int feature_index = -1;
+//             for (auto &it_per_id : f_manager.feature)
+//             {
+//                 it_per_id.used_num = it_per_id.feature_per_frame.size();
+//                 if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+//                     continue;
 
-#if two_cam_test
-                // the first optimize only depends on features in camesra0
-                if (f_manager.main_cam == f_manager.CAM0)
-                {
-                    if (it_per_id.feature_per_frame[0].camera_id != 0) continue;
-                }
-                else if (f_manager.main_cam == f_manager.CAM1)
-                    if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
-#endif
+// #if two_cam_test
+//                 // the first optimize only depends on features in camesra0
+//                 if (f_manager.main_cam == f_manager.CAM0)
+//                 {
+//                     if (it_per_id.feature_per_frame[0].camera_id != 0) continue;
+//                 }
+//                 else if (f_manager.main_cam == f_manager.CAM1)
+//                     if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
+// #endif
 
-                ++feature_index;
+//                 ++feature_index;
 
-                int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
-                if (imu_i != 0)
-                    continue;
+//                 int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
+//                 if (imu_i != 0)
+//                     continue;
 
-                Vector3d pts_i = it_per_id.feature_per_frame[0].point;
+//                 Vector3d pts_i = it_per_id.feature_per_frame[0].point;
 
-                for (auto &it_per_frame : it_per_id.feature_per_frame)
-                {
-                    imu_j++;
-                    if (imu_i == imu_j)
-                        continue;
+//                 for (auto &it_per_frame : it_per_id.feature_per_frame)
+//                 {
+//                     imu_j++;
+//                     if (imu_i == imu_j)
+//                         continue;
 
-                    Vector3d pts_j = it_per_frame.point;
-                    if (ESTIMATE_TD)
-                    {
-                        ProjectionTdFactor *f_td = new ProjectionTdFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
-                                                                          it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                          it_per_id.feature_per_frame[0].uv.y(), it_per_frame.uv.y());
-                        ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f_td, loss_function,
-                                                                                        vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
-                                                                                        vector<int>{0, 3});
-                        marginalization_info->addResidualBlockInfo(residual_block_info);
-                    }
-                    else
-                    {
-                        ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
-#if two_cam_test
-                        //test
-                        ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
-                                                                                       vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[it_per_frame.camera_id], para_Feature[feature_index]},
-                                                                                       vector<int>{0, 3});
-#else
-                        ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
-                                                                                       vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index]},
-                                                                                       vector<int>{0, 3});
-#endif
-                        marginalization_info->addResidualBlockInfo(residual_block_info);
-                    }
-                }
-            }
-        }
+//                     Vector3d pts_j = it_per_frame.point;
+//                     if (ESTIMATE_TD)
+//                     {
+//                         ProjectionTdFactor *f_td = new ProjectionTdFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
+//                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
+//                                                                           it_per_id.feature_per_frame[0].uv.y(), it_per_frame.uv.y());
+//                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f_td, loss_function,
+//                                                                                         vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
+//                                                                                         vector<int>{0, 3});
+//                         marginalization_info->addResidualBlockInfo(residual_block_info);
+//                     }
+//                     else
+//                     {
+//                         ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
+// #if two_cam_test
+//                         //test
+//                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
+//                                                                                        vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[it_per_frame.camera_id], para_Feature[feature_index]},
+//                                                                                        vector<int>{0, 3});
+// #else
+//                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
+//                                                                                        vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index]},
+//                                                                                        vector<int>{0, 3});
+// #endif
+//                         marginalization_info->addResidualBlockInfo(residual_block_info);
+//                     }
+//                 }
+//             }
+//         }
 
-       TicToc t_pre_margin;
-       marginalization_info->preMarginalize();
-       ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
+//        TicToc t_pre_margin;
+//        marginalization_info->preMarginalize();
+//        ROS_DEBUG("pre marginalization %f ms", t_pre_margin.toc());
 
-       TicToc t_margin;
-       marginalization_info->marginalize();
-       ROS_DEBUG("marginalization %f ms", t_margin.toc());
+//        TicToc t_margin;
+//        marginalization_info->marginalize();
+//        ROS_DEBUG("marginalization %f ms", t_margin.toc());
 
-       std::unordered_map<long, double *> addr_shift;
-       for (int i = 1; i <= WINDOW_SIZE; i++)
-       {
-           addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i - 1];
-           addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i - 1];
-       }
-       for (int i = 0; i < NUM_OF_CAM; i++)
-           addr_shift[reinterpret_cast<long>(para_Ex_Pose[i])] = para_Ex_Pose[i];
-       if (ESTIMATE_TD)
-       {
-           addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
-       }
-       vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
+//        std::unordered_map<long, double *> addr_shift;
+//        for (int i = 1; i <= WINDOW_SIZE; i++)
+//        {
+//            addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i - 1];
+//            addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i - 1];
+//        }
+//        for (int i = 0; i < NUM_OF_CAM; i++)
+//            addr_shift[reinterpret_cast<long>(para_Ex_Pose[i])] = para_Ex_Pose[i];
+//        if (ESTIMATE_TD)
+//        {
+//            addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
+//        }
+//        vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
 
-       if (last_marginalization_info)
-           delete last_marginalization_info;
-       last_marginalization_info = marginalization_info;
-       last_marginalization_parameter_blocks = parameter_blocks;
+//        if (last_marginalization_info)
+//            delete last_marginalization_info;
+//        last_marginalization_info = marginalization_info;
+//        last_marginalization_parameter_blocks = parameter_blocks;
 
-   }
-   else
-   {
-       if (last_marginalization_info &&
-           std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[WINDOW_SIZE - 1]))
-       {
+//    }
+//    else
+//    {
+//        if (last_marginalization_info &&
+//            std::count(std::begin(last_marginalization_parameter_blocks), std::end(last_marginalization_parameter_blocks), para_Pose[WINDOW_SIZE - 1]))
+//        {
 
-           MarginalizationInfo *marginalization_info = new MarginalizationInfo();
-           vector2double();
-           if (last_marginalization_info)
-           {
-               vector<int> drop_set;
-               for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
-               {
-                   ROS_ASSERT(last_marginalization_parameter_blocks[i] != para_SpeedBias[WINDOW_SIZE - 1]);
-                   if (last_marginalization_parameter_blocks[i] == para_Pose[WINDOW_SIZE - 1])
-                       drop_set.push_back(i);
-               }
-               // construct new marginlization_factor
-               MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
-               ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
-                                                                              last_marginalization_parameter_blocks,
-                                                                              drop_set);
+//            MarginalizationInfo *marginalization_info = new MarginalizationInfo();
+//            vector2double();
+//            if (last_marginalization_info)
+//            {
+//                vector<int> drop_set;
+//                for (int i = 0; i < static_cast<int>(last_marginalization_parameter_blocks.size()); i++)
+//                {
+//                    ROS_ASSERT(last_marginalization_parameter_blocks[i] != para_SpeedBias[WINDOW_SIZE - 1]);
+//                    if (last_marginalization_parameter_blocks[i] == para_Pose[WINDOW_SIZE - 1])
+//                        drop_set.push_back(i);
+//                }
+//                // construct new marginlization_factor
+//                MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
+//                ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(marginalization_factor, NULL,
+//                                                                               last_marginalization_parameter_blocks,
+//                                                                               drop_set);
 
-               marginalization_info->addResidualBlockInfo(residual_block_info);
-           }
+//                marginalization_info->addResidualBlockInfo(residual_block_info);
+//            }
 
-           TicToc t_pre_margin;
-           ROS_DEBUG("begin marginalization");
-           marginalization_info->preMarginalize();
-           ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
+//            TicToc t_pre_margin;
+//            ROS_DEBUG("begin marginalization");
+//            marginalization_info->preMarginalize();
+//            ROS_DEBUG("end pre marginalization, %f ms", t_pre_margin.toc());
 
-           TicToc t_margin;
-           ROS_DEBUG("begin marginalization");
-           marginalization_info->marginalize();
-           ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
+//            TicToc t_margin;
+//            ROS_DEBUG("begin marginalization");
+//            marginalization_info->marginalize();
+//            ROS_DEBUG("end marginalization, %f ms", t_margin.toc());
 
-           std::unordered_map<long, double *> addr_shift;
-           for (int i = 0; i <= WINDOW_SIZE; i++)
-           {
-               if (i == WINDOW_SIZE - 1)
-                   continue;
-               else if (i == WINDOW_SIZE)
-               {
-                   addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i - 1];
-                   addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i - 1];
-               }
-               else
-               {
-                   addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i];
-                   addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i];
-               }
-           }
-           for (int i = 0; i < NUM_OF_CAM; i++)
-               addr_shift[reinterpret_cast<long>(para_Ex_Pose[i])] = para_Ex_Pose[i];
-           if (ESTIMATE_TD)
-           {
-               addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
-           }
+//            std::unordered_map<long, double *> addr_shift;
+//            for (int i = 0; i <= WINDOW_SIZE; i++)
+//            {
+//                if (i == WINDOW_SIZE - 1)
+//                    continue;
+//                else if (i == WINDOW_SIZE)
+//                {
+//                    addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i - 1];
+//                    addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i - 1];
+//                }
+//                else
+//                {
+//                    addr_shift[reinterpret_cast<long>(para_Pose[i])] = para_Pose[i];
+//                    addr_shift[reinterpret_cast<long>(para_SpeedBias[i])] = para_SpeedBias[i];
+//                }
+//            }
+//            for (int i = 0; i < NUM_OF_CAM; i++)
+//                addr_shift[reinterpret_cast<long>(para_Ex_Pose[i])] = para_Ex_Pose[i];
+//            if (ESTIMATE_TD)
+//            {
+//                addr_shift[reinterpret_cast<long>(para_Td[0])] = para_Td[0];
+//            }
 
-           vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
-           if (last_marginalization_info)
-               delete last_marginalization_info;
-           last_marginalization_info = marginalization_info;
-           last_marginalization_parameter_blocks = parameter_blocks;
+//            vector<double *> parameter_blocks = marginalization_info->getParameterBlocks(addr_shift);
+//            if (last_marginalization_info)
+//                delete last_marginalization_info;
+//            last_marginalization_info = marginalization_info;
+//            last_marginalization_parameter_blocks = parameter_blocks;
 
-       }
-   }
-   ROS_DEBUG("whole marginalization costs: %f", t_whole_marginalization.toc());
-   ROS_DEBUG("whole time for ceres: %f", t_whole.toc());
+//        }
+//    }
+//    ROS_DEBUG("whole marginalization costs: %f", t_whole_marginalization.toc());
+//    ROS_DEBUG("whole time for ceres: %f", t_whole.toc());
 }
 
 void Estimator::optimization_obs()
@@ -1404,6 +1441,8 @@ void Estimator::optimization_obs()
     }
     int f_m_cnt = 0;
     int feature_index = -1;
+    // check switch main camera 
+    int feature_num=0;
     int size=0 ;
     size = f_manager.feature.size();
     for (auto &it_per_id : f_manager.feature)
@@ -1413,13 +1452,23 @@ void Estimator::optimization_obs()
             continue;
 
 #if two_cam_test
-        // the first optimize only depends on features in camesra0
+        // the first optimize only depends on features in camera0
         if (f_manager.main_cam == f_manager.CAM0)
         {
-            if (it_per_id.feature_per_frame[0].camera_id != 0) continue;
+            if (it_per_id.feature_per_frame[0].camera_id != 0) 
+            {
+                ++feature_index;
+                continue;
+            }
         }
         else if (f_manager.main_cam == f_manager.CAM1)
-            if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
+        {
+            if (it_per_id.feature_per_frame[0].camera_id != 1)
+            {
+                ++feature_index;
+                continue;
+            }
+        }
 #endif
 
         ++feature_index;
@@ -1478,6 +1527,8 @@ void Estimator::optimization_obs()
         }
     }
 //    std::cout << "size of feature_index_obs: " << feature_index << std::endl;
+    //ROS_INFO("num of features in second opt %d",feature_index);
+    //ROS_INFO(" 2nd visual measurement count: %d", f_m_cnt);
     ROS_DEBUG("visual measurement count: %d", f_m_cnt);
     ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
 
@@ -1927,9 +1978,16 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
     sameId_pts[1].clear();
     pts_observability[0].clear();
     pts_observability[1].clear();
+    pts_all_observability.clear();
     Eigen::MatrixXd H[2] = {MatrixXd(2*f_manager.last_track_num,9), MatrixXd(2*f_manager.last_track_num,9)}; // maybe the matrix is too large for one frame
+    //pointwise method
+    Eigen::MatrixXd H_all(2*f_manager.last_track_num,9);
+    H_all.setZero();
     H[0].setZero();
     H[1].setZero();
+    // check the number of filted feature point 
+    int num_filted_point = 0 ;
+    obs_sum = 0;
 #else
     sameId_pts.clear();
     pts_observability.clear();
@@ -1950,9 +2008,10 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
     }
   }
 
-  int feature_index = 0;
+  int feature_index = -1;
 #if two_cam_test
     int tracked_feature_num[2] = {0};
+    int tracked_all_feature_num = 0;
 #else
     int tracked_feature_num = 0; // the index is for H
 #endif
@@ -1965,7 +2024,7 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
     assert(camera_id == 0 || camera_id == 1);
 #endif
 
-    // 以下條件會導致當前真貞中的某些（灰色）點被濾除
+    // 以下條件會導致當前貞中的某些（灰色）點被濾除
     if(!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
       continue;
 
@@ -2087,21 +2146,25 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
       feature_index++;
       continue;
     }
-
     // filter the value outside the 3rd standard derivatives
 #if two_cam_test
-        if (pts_observability[camera_id].size() > 2 && abs((rc_Matrix.transpose() * rc_Matrix).trace() - mean[camera_id]) > 3*stdev[camera_id])
-#else
-        if (pts_observability.size() > 2 && abs((rc_Matrix.transpose() * rc_Matrix).trace() - mean) > 3*stdev)
+        //if (pts_observability[camera_id].size() >2 && abs((rc_Matrix.transpose() * rc_Matrix).trace() - mean[camera_id]) > 3*stdev[camera_id])
+        if (pts_all_observability.size() > 2 && abs((rc_Matrix.transpose() * rc_Matrix).trace() - all_mean) > 3*all_stdev)
 #endif
     {
       feature_index++;
       continue;
     }
-
+    // if((rc_Matrix.transpose() * rc_Matrix).trace() < all_mean)
+    // {
+    //     num_filted_point++;
+    //     feature_index++;
+    //     continue;
+    // }
 #if two_cam_test
         sameId_pts[camera_id].push_back(make_pair(feature_id, cv::Point2f(image.find(feature_id)->second[0].second(3,0), image.find(feature_id)->second[0].second(4,0))));
-        pts_observability[camera_id].push_back((rc_Matrix.transpose() * rc_Matrix).trace());
+        //pts_observability[camera_id].push_back((rc_Matrix.transpose() * rc_Matrix).trace());
+        pts_all_observability.push_back((rc_Matrix.transpose() * rc_Matrix).trace());
 #else
         sameId_pts.push_back(make_pair(feature_id, cv::Point2f(image.find(feature_id)->second[0].second(3,0), image.find(feature_id)->second[0].second(4,0))));
         pts_observability.push_back((rc_Matrix.transpose() * rc_Matrix).trace());
@@ -2110,18 +2173,31 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 
     // save the current standard derivatives
 #if two_cam_test
+        /*
         double sum = accumulate(pts_observability[camera_id].begin(), pts_observability[camera_id].end(), 0.0);
         mean[camera_id] = sum / pts_observability[camera_id].size();
         vector<double> diff(pts_observability[camera_id].size());
         transform(pts_observability[camera_id].begin(), pts_observability[camera_id].end(), diff.begin(), bind2nd(minus<double>(), mean[camera_id]));
         double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
         stdev[camera_id] = std::sqrt(sq_sum / pts_observability[camera_id].size());
-
-        H[camera_id].block<2,9>((2 * tracked_feature_num[camera_id]),0) = rc_Matrix;
-        tracked_feature_num[camera_id]++;
+        */
+        // for pointwise method 
+        
+        obs_sum = accumulate(pts_all_observability.begin(), pts_all_observability.end(), 0.0);
+        all_mean = obs_sum / pts_all_observability.size();
+        vector<double> diff_all(pts_all_observability.size());
+        transform(pts_all_observability.begin(), pts_all_observability.end(), diff_all.begin(), bind2nd(minus<double>(), all_mean));
+        double sq_all_sum = inner_product(diff_all.begin(), diff_all.end(), diff_all.begin(), 0.0);
+        all_stdev = std::sqrt(sq_all_sum / pts_all_observability.size());
+    
+        //H[camera_id].block<2,9>((2 * tracked_feature_num[camera_id]),0) = rc_Matrix;
+        //tracked_feature_num[camera_id]++;
+        H_all.block<2,9>((2 * tracked_all_feature_num),0) = rc_Matrix;
+        tracked_all_feature_num ++;
         feature_index++;
+        
 #else
-        double sum = accumulate(pts_observability.begin(), pts_observability.end(), 0.0);
+        //double sum = accumulate(pts_observability.begin(), pts_observability.end(), 0.0);
         mean = sum / pts_observability.size();
         vector<double> diff(pts_observability.size());
         transform(pts_observability.begin(), pts_observability.end(), diff.begin(), bind2nd(minus<double>(), mean));
@@ -2133,27 +2209,40 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
         feature_index++;
 #endif
   }
-
 #if two_cam_test
-    for (int i = 0; i < NUM_OF_CAM; i++)
+/*
+    for (int i = 0; i <NUM_OF_CAM ; i++)
     {
         MatrixXd CostFunction(9,9);
+        VectorXd diagonal;
         CostFunction = H[i].transpose() * H[i] / tracked_feature_num[i];
         Observation_matrix_trace[i] = CostFunction.trace();
     }
-
+    */
+    //for pointwise method
+    MatrixXd CostFunction_all(9,9);
+    CostFunction_all = H_all.transpose() * H_all/ tracked_all_feature_num;
+    double OBS_ALL= CostFunction_all.trace();
+    //std::cout << "OBS_0= " << Observation_matrix_trace[0] << std::endl;
+    //std::cout << "OBS_1= " << Observation_matrix_trace[1]  << std::endl;
+    std::cout << "OBS_ALL= " << OBS_ALL << std::endl;
     // set the cam with better Observability be the main camera
-    if (Observation_matrix_trace[0] >= Observation_matrix_trace[1])
+    /*
+    if (Observation_matrix_trace[0] >3*Observation_matrix_trace[1])
     {
         f_manager.main_cam = f_manager.CAM0;
-        std::cout<<"main camera :cam0"<<std::endl;
+        ROS_INFO("Main camera = CAM0");
+    }
+    else if (Observation_matrix_trace[1] >3*Observation_matrix_trace[0])
+    {
+        f_manager.main_cam = f_manager.CAM1;
+        ROS_INFO("Main camera = CAM1");
     }
     else
     {
-        f_manager.main_cam = f_manager.CAM1;
-        std::cout<<"main camera :cam1"<<std::endl;
+        f_manager.main_cam = f_manager.ALL_CAM;
     }
-       
+    */
 #else
     MatrixXd CostFunction(9,9);
     CostFunction = H.transpose() * H / tracked_feature_num;
@@ -2165,21 +2254,26 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
   std::cout << "sameId_pts: " << sameId_pts.size() <<std::endl;
   std::cout << "pts_observability: " << pts_observability.size() <<std::endl;
   std::cout << "----------------------" <<std::endl;*/
-
   static int result_num = 1;
   //std::cout << result_num << ". Observation_matrix_trace: " << Observation_matrix_trace << std::endl;
 
   std::ofstream file, file_reduce_u, file_reduce_v, file_temp_right, file_each_point;
-  file.open ("/home/zhehui/estimation_ws/example.csv", ios::app);
+  file.open ("/home/ncrl/estimation_ws/example.csv", ios::app);
 # if TEST
   file_each_point.open ("/home/zhehui/estimation_ws/file_each_point.csv", ios::app);
 # endif
 
 #if two_cam_test
+/*
     file << result_num << "," << std::setprecision(15) << header.stamp.toSec() << ","
          << "camera0" << "," << Observation_matrix_trace[0] << "," << valid_feature << "," << tracked_feature_num << ","
          << "camera1" << "," << Observation_matrix_trace[1] << "," << valid_feature << "," << tracked_feature_num << "\n";
+         */
+    file << result_num << "," << std::setprecision(15) << header.stamp.toSec() << ","
+         << "all camera" << "," <<OBS_ALL << "," << valid_feature << "," << tracked_all_feature_num << "\n";
 //    std::cout << "camera0: " << Observation_matrix_trace[0] << std::endl << "camera1: " << Observation_matrix_trace[1] << std::endl;
+    //std::cout << "camera0: " << Observation_matrix_trace[0] << std::endl;
+    //std::cout << "camera1: " << Observation_matrix_trace[1] << std::endl;
 #else
     file << result_num << "," << std::setprecision(15) << header.stamp.toSec() << "," << Observation_matrix_trace << "," << valid_feature << "," << tracked_feature_num << "\n";
     inverse_observation_matrix_trace = 1.0 / Observation_matrix_trace;
@@ -2204,7 +2298,7 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 
   result_num++;
 }
-
+// calculate  the sum of all sliding window feature points 
 double Estimator::total_obs_val()
 {
     double total_obs = 0.0;
@@ -2232,7 +2326,7 @@ double Estimator::total_obs_val()
 
     return total_obs;
 }
-
+// calculate the number of feature in 
 int Estimator::total_camera_residual()
 {
   int camera_residual = 0;

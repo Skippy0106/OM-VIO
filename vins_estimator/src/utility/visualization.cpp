@@ -7,10 +7,11 @@ using namespace Eigen;
 ros::Publisher pub_odometry, pub_latest_odometry;
 ros::Publisher pub_path, pub_relo_path;
 ros::Publisher pub_point_cloud, pub_margin_cloud;
+ros::Publisher pub_cam0_point_cloud,pub_cam1_point_cloud;
 ros::Publisher pub_key_poses;
 ros::Publisher pub_relo_relative_pose;
 ros::Publisher pub_camera_pose;
-ros::Publisher pub_camera_pose_visual;
+ros::Publisher pub_camera_pose_visual,pub_camera1_pose_visual;
 ros::Publisher pub_observation_matrix;
 ros::Publisher pub_sameId;
 nav_msgs::Path path, relo_path;
@@ -33,7 +34,9 @@ void registerPub(ros::NodeHandle &n)
     pub_path = n.advertise<nav_msgs::Path>("path", 1000);
     pub_relo_path = n.advertise<nav_msgs::Path>("relocalization_path", 1000);
     pub_odometry = n.advertise<nav_msgs::Odometry>("odometry", 1000);
-    pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
+    //pub_point_cloud = n.advertise<sensor_msgs::PointCloud>("point_cloud", 1000);
+    pub_cam0_point_cloud = n.advertise<sensor_msgs::PointCloud>("cam0_point_cloud", 1000);
+    pub_cam1_point_cloud = n.advertise<sensor_msgs::PointCloud>("cam1_point_cloud", 1000);
     pub_margin_cloud = n.advertise<sensor_msgs::PointCloud>("history_cloud", 1000);
     pub_key_poses = n.advertise<visualization_msgs::Marker>("key_poses", 1000);
     pub_camera_pose = n.advertise<nav_msgs::Odometry>("camera_pose", 1000);
@@ -79,7 +82,7 @@ void printStatistics(const Estimator &estimator, double t)
 {
     if (estimator.solver_flag != Estimator::SolverFlag::NON_LINEAR)
         return;
-    printf("position: %f, %f, %f\r", estimator.Ps[WINDOW_SIZE].x(), estimator.Ps[WINDOW_SIZE].y(), estimator.Ps[WINDOW_SIZE].z());
+    //printf("position: %f, %f, %f\r", estimator.Ps[WINDOW_SIZE].x(), estimator.Ps[WINDOW_SIZE].y(), estimator.Ps[WINDOW_SIZE].z());
     ROS_DEBUG_STREAM("position: " << estimator.Ps[WINDOW_SIZE].transpose());
     ROS_DEBUG_STREAM("orientation: " << estimator.Vs[WINDOW_SIZE].transpose());
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -232,11 +235,11 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
     if (estimator.solver_flag == Estimator::SolverFlag::NON_LINEAR)
     {
         int i = idx2;
-        int main_cam = estimator.f_manager.main_cam;
-        Vector3d P = estimator.Ps[i] + estimator.Rs[i] * estimator.tic[main_cam];
-        Quaterniond R = Quaterniond(estimator.Rs[i] * estimator.ric[main_cam]);
-
-        nav_msgs::Odometry odometry;
+        //int main_cam = estimator.f_manager.main_cam;
+        //int main_cam = 0;
+        Vector3d P = estimator.Ps[i] + estimator.Rs[i] * estimator.tic[0];
+        Quaterniond R = Quaterniond(estimator.Rs[i] * estimator.ric[0]);
+        nav_msgs::Odometry odometry,odometry_1;
         odometry.header = header;
         odometry.header.frame_id = "world";
         odometry.pose.pose.position.x = P.x();
@@ -254,14 +257,19 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::Header &header)
         cameraposevisual.publish_by(pub_camera_pose_visual, odometry.header);
     }
 }
-
 void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
 {
-    sensor_msgs::PointCloud point_cloud, loop_point_cloud;
+    sensor_msgs::PointCloud point_cloud, loop_point_cloud,cam0_point_cloud,cam1_point_cloud;
     point_cloud.header = header;
+    cam0_point_cloud.header=header;
+    cam1_point_cloud.header=header;
     loop_point_cloud.header = header;
 
-    int main_cam = estimator.f_manager.main_cam;
+    //int main_cam = estimator.f_manager.main_cam;
+    int main_cam = 0;
+    int feature_num=0;
+    int cam0_feature_num=0;
+    int cam1_feature_num=0;
     for (auto &it_per_id : estimator.f_manager.feature)
     {
         int used_num;
@@ -270,6 +278,31 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
             continue;
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
             continue;
+        if (it_per_id.feature_per_frame[0].camera_id==0)
+        {
+            int imu_i = it_per_id.start_frame;
+            Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
+            Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
+            geometry_msgs::Point32 p;
+            p.x = w_pts_i(0);
+            p.y = w_pts_i(1);
+            p.z = w_pts_i(2);
+            cam0_point_cloud.points.push_back(p);
+            ++ cam0_feature_num;
+        }
+        else
+        {
+            int imu_i = it_per_id.start_frame;
+            Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
+            Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[1] * pts_i + estimator.tic[1]) + estimator.Ps[imu_i];
+            geometry_msgs::Point32 p;
+            p.x = w_pts_i(0);
+            p.y = w_pts_i(1);
+            p.z = w_pts_i(2);
+            cam1_point_cloud.points.push_back(p);
+            ++ cam1_feature_num;
+        }
+/* 
         int imu_i = it_per_id.start_frame;
         Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
         Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[main_cam] * pts_i + estimator.tic[main_cam]) + estimator.Ps[imu_i];
@@ -279,8 +312,14 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
         p.y = w_pts_i(1);
         p.z = w_pts_i(2);
         point_cloud.points.push_back(p);
+        ++ feature_num; */
+        ++ feature_num;
     }
-    pub_point_cloud.publish(point_cloud);
+    //ROS_INFO("From CAM0 %d",cam0_feature_num);
+    //ROS_INFO("From CAM1 %d",cam1_feature_num);
+    //ROS_INFO("Feature num %d",feature_num);
+    pub_cam0_point_cloud.publish(cam0_point_cloud);
+    pub_cam1_point_cloud.publish(cam1_point_cloud);
 
 
     // pub margined potin
@@ -313,12 +352,12 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::Header &header)
     pub_margin_cloud.publish(margin_cloud);
 }
 
-
 void pubTF(const Estimator &estimator, const std_msgs::Header &header)
 {
     if( estimator.solver_flag != Estimator::SolverFlag::NON_LINEAR)
         return;
-    int main_cam = estimator.f_manager.main_cam;
+    //int main_cam = estimator.f_manager.main_cam;
+    int main_cam = 0;
     static tf::TransformBroadcaster br;
     tf::Transform transform;
     tf::Quaternion q;

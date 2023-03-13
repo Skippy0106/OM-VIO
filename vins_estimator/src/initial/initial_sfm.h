@@ -20,6 +20,7 @@ struct SFMFeature
     vector<pair<int,Vector2d>> observation;
     double position[3];
     double depth;
+	intㄍ camera_id;
 };
 
 struct ReprojectionError3D
