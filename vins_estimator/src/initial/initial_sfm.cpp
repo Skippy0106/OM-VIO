@@ -118,10 +118,10 @@ bool GlobalSFM::construct(int frame_num, Quaterniond* q, Vector3d* T, int l,
 			  const Matrix3d relative_R, const Vector3d relative_T,
 			  vector<SFMFeature> &sfm_f, map<int, Vector3d> &sfm_tracked_points)
 {
-    std::cout << "frame_num: " << frame_num << std::endl;
-    std::cout << "l: " << l << std::endl;
-    std::cout << "relative_R:\n" << relative_R << std::endl;
-    std::cout << "relative_T:\n" << relative_T << std::endl;
+    // std::cout << "frame_num: " << frame_num << std::endl;
+    // std::cout << "l: " << l << std::endl;
+    // std::cout << "relative_R:\n" << relative_R << std::endl;
+    // std::cout << "relative_T:\n" << relative_T << std::endl;
 
 	feature_num = sfm_f.size();
 	//cout << "set 0 and " << l << " as known " << endl;

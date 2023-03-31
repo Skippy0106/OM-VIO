@@ -20,10 +20,14 @@ class ImageFrame
         };
         map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>> > > points;
         double t;
-        Matrix3d R;
-        Vector3d T;
+        //Matrix3d R;
+        //Vector3d T;
+        // two camera init
+        Matrix3d R[2];
+        Vector3d T[2];
         IntegrationBase *pre_integration;
         bool is_key_frame;
 };
 
-bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, VectorXd &x, int main_cam=0);
+
+bool VisualIMUAlignment(map<double, ImageFrame> &all_image_frame, Vector3d* Bgs, Vector3d &g, VectorXd &x, int main_cam);

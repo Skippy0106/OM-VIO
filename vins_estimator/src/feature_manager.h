@@ -108,6 +108,8 @@ class FeatureManager
     bool addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, double td);
     void debugShow();
     vector<pair<Vector3d, Vector3d>> getCorresponding(int frame_count_l, int frame_count_r);
+    // two camera init 
+    vector<pair<Vector3d, Vector3d>> getCorresponding_init(int frame_count_l, int frame_count_r,int camera_id);
 
     //void updateDepth(const VectorXd &x);
     void setDepth(const VectorXd &x);
@@ -115,6 +117,7 @@ class FeatureManager
     void clearDepth(const VectorXd &x);
     VectorXd getDepthVector();
     void triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
+    void triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ric[],int camera_id);
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
     void removeBack();
     void removeFront(int frame_count);

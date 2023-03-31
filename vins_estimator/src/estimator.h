@@ -40,13 +40,19 @@ class Estimator
     void clearState();
     bool initialStructure();
     bool visualInitialAlign();
-    bool relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l);
+    bool relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l , int camera_id);
     void slideWindow();
     void solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
+    void solveOdometry_cam0(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
+    void solveOdometry_cam1(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
     void slideWindowNew();
     void slideWindowOld();
     void optimization();
     void vector2double();
+
+    void vetor2double_init();
+    void double2vector_init();
+
     void double2vector();
     bool failureDetection();
 
@@ -106,7 +112,8 @@ class Estimator
 
     SolverFlag solver_flag;
     MarginalizationFlag  marginalization_flag;
-    Vector3d g;
+    // two camera init
+    Vector3d g,g_1;
     MatrixXd Ap[2], backup_A;
     VectorXd bp[2], backup_b;
 
@@ -123,8 +130,17 @@ class Estimator
     Matrix3d Rs[(WINDOW_SIZE + 1)];
     Vector3d Bas[(WINDOW_SIZE + 1)];
     Vector3d Bgs[(WINDOW_SIZE + 1)];
+    Vector3d Bgs_0[(WINDOW_SIZE + 1)];
+    Vector3d Bgs_1[(WINDOW_SIZE + 1)];
     double td;
-    
+    // two camera init 
+    Vector3d Ps_0[(WINDOW_SIZE + 1)];
+    Vector3d Vs_0[(WINDOW_SIZE + 1)];
+    Matrix3d Rs_0[(WINDOW_SIZE + 1)];
+    Vector3d Ps_1[(WINDOW_SIZE + 1)];
+    Vector3d Vs_1[(WINDOW_SIZE + 1)];
+    Matrix3d Rs_1[(WINDOW_SIZE + 1)];
+
     Matrix3d back_R0, last_R, last_R0;
     Vector3d back_P0, last_P, last_P0;
     // sliding window for OBS 
