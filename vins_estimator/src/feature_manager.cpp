@@ -57,6 +57,18 @@ int FeatureManager::getFeatureCount()
     return cnt;
 }
 
+int FeatureManager::getFeatureCount_init()
+{
+    int cnt = 0;
+    for (auto &it : feature)
+    {
+        it.used_num = it.feature_per_frame.size();
+        if (!(it.used_num >= 2 && it.start_frame < WINDOW_SIZE - 2))
+            continue;
+        cnt++;
+    }
+    return cnt;
+}
 
 bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, double td)
 {
@@ -190,7 +202,7 @@ vector<pair<Vector3d, Vector3d>> FeatureManager::getCorresponding_init(int frame
 }
 
 
-void FeatureManager::setDepth(const VectorXd &x)
+void FeatureManager:: setDepth(const VectorXd &x)
 {
     int feature_index = -1;
     for (auto &it_per_id : feature)
@@ -217,6 +229,40 @@ void FeatureManager::setDepth(const VectorXd &x)
         }
         else
             it_per_id.solve_flag = 1;
+    }
+}
+
+
+void FeatureManager:: setDepth_init(const VectorXd &x,int camera_id)
+{
+    int feature_index = -1;
+    for (auto &it_per_id : feature)
+    {
+        it_per_id.used_num = it_per_id.feature_per_frame.size();
+        if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+            continue;
+        if(camera_id == 0)
+        {
+            it_per_id.estimated_cam0_depth = 1.0 / x(++feature_index);
+            //ROS_INFO("feature id %d , start_frame %d, depth %f ", it_per_id->feature_id, it_per_id-> start_frame, it_per_id->estimated_depth);
+            if (it_per_id.estimated_cam0_depth < 0)
+            {
+                it_per_id.solve_flag = 2;
+            }
+            else
+                it_per_id.solve_flag = 1;
+        }
+        else if(camera_id == 1)
+        {
+            it_per_id.estimated_cam1_depth = 1.0 / x(++feature_index);
+            //ROS_INFO("feature id %d , start_frame %d, depth %f ", it_per_id->feature_id, it_per_id-> start_frame, it_per_id->estimated_depth);
+            if (it_per_id.estimated_cam1_depth < 0)
+            {
+                it_per_id.solve_flag = 2;
+            }
+            else
+                it_per_id.solve_flag = 1;
+        }
     }
 }
 
@@ -275,7 +321,30 @@ VectorXd FeatureManager::getDepthVector()
 #endif
 
 #if 1
+
         dep_vec(++feature_index) = 1. / it_per_id.estimated_depth;
+#else
+        dep_vec(++feature_index) = it_per_id->estimated_depth;
+#endif
+    }
+    return dep_vec;
+}
+
+//two camera init 
+VectorXd FeatureManager::getDepthVector_init(int camera_id)
+{
+    VectorXd dep_vec(getFeatureCount_init());
+    int feature_index = -1;
+    for (auto &it_per_id : feature)
+    {
+        it_per_id.used_num = it_per_id.feature_per_frame.size();
+        if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+            continue;
+#if 1
+    if (camera_id == 0)
+        dep_vec(++feature_index) = 1. / it_per_id.estimated_cam0_depth;
+    else if (camera_id == 1)
+        dep_vec(++feature_index) = 1. / it_per_id.estimated_cam1_depth;
 #else
         dep_vec(++feature_index) = it_per_id->estimated_depth;
 #endif
@@ -399,8 +468,18 @@ void FeatureManager::triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ri
            if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
 #endif
 
-        if (it_per_id.estimated_depth > 0)
-            continue;
+        // if (it_per_id.estimated_depth > 0)
+        //     continue;
+
+        if(camera_id==0)
+        {
+            if (it_per_id.estimated_cam0_depth > 0) continue;
+        }
+        else if(camera_id==1)
+        {
+            if (it_per_id.estimated_cam1_depth > 0) continue;
+        }
+
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
 
         //test
@@ -467,19 +546,32 @@ void FeatureManager::triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ri
         ROS_ASSERT(svd_idx == svd_A.rows());
         Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
         double svd_method = svd_V[2] / svd_V[3];
-        //it_per_id->estimated_depth = -b / A;
-        //it_per_id->estimated_depth = svd_V[2] / svd_V[3];
 
-        it_per_id.estimated_depth = svd_method;
-        //it_per_id->estimated_depth = INIT_DEPTH;
+        // it_per_id.estimated_depth = svd_method;
 
-        if (it_per_id.estimated_depth < 0.1)
+        // if (it_per_id.estimated_depth < 0.1)
+        // {
+        //     it_per_id.estimated_depth = INIT_DEPTH;
+        // }
+        if(camera_id==0)
         {
-            it_per_id.estimated_depth = INIT_DEPTH;
+            it_per_id.estimated_cam0_depth = svd_method;
+            if(it_per_id.estimated_cam0_depth < 0.1)
+            {
+                it_per_id.estimated_cam0_depth = INIT_DEPTH;
+            }
         }
-
+        else if (camera_id==1)
+        {
+            if(it_per_id.estimated_cam1_depth < 0.1)
+            {
+                it_per_id.estimated_cam1_depth = INIT_DEPTH;
+            }
+        }
     }
 }
+
+
 
 
 

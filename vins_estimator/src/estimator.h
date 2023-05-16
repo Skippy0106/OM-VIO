@@ -43,21 +43,26 @@ class Estimator
     bool relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l , int camera_id);
     void slideWindow();
     void solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
-    void solveOdometry_cam0(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
-    void solveOdometry_cam1(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
+    void solveOdometry_init(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
     void slideWindowNew();
     void slideWindowOld();
     void optimization();
+    //
+    void optimization_init();
     void vector2double();
-
-    void vetor2double_init();
-    void double2vector_init();
-
     void double2vector();
+    //two camera init 
+    void vector2double_init();
+    void double2vector_init(int camera_id);
+    
     bool failureDetection();
 
     // obs_control
     void obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
+    // select camera for initialization 
+    void obs_trace_init(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header,int camera_id);
+
+
     void obs_optimization();
     double obs_para_Pose[SIZE_POSE];
     double obs_para_SpeedBias[SIZE_SPEEDBIAS];
@@ -172,8 +177,22 @@ class Estimator
 
 
     double para_Pose[WINDOW_SIZE + 1][SIZE_POSE];
+    //two cam init 
+    double para_Pose_cam0[WINDOW_SIZE + 1][SIZE_POSE];
+    double para_Pose_cam1[WINDOW_SIZE + 1][SIZE_POSE];
+
+
     double para_SpeedBias[WINDOW_SIZE + 1][SIZE_SPEEDBIAS];
+    // two camera init 
+    double para_SpeedBias_cam0[WINDOW_SIZE + 1][SIZE_SPEEDBIAS];
+    double para_SpeedBias_cam1[WINDOW_SIZE + 1][SIZE_SPEEDBIAS];
+
     double para_Feature[NUM_OF_F][SIZE_FEATURE];
+    // two camera init
+    double para_Feature_cam0[NUM_OF_F][SIZE_FEATURE];
+    double para_Feature_cam1[NUM_OF_F][SIZE_FEATURE];
+
+
 #if two_cam_test
     double para_Ex_Pose[2][SIZE_POSE];
 #else

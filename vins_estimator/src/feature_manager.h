@@ -81,6 +81,12 @@ class FeaturePerId
     bool is_outlier;
     bool is_margin;
     double estimated_depth;
+
+    // for two camera init 
+
+    double estimated_cam0_depth;
+    double estimated_cam1_depth;
+
     int solve_flag; // 0 haven't solve yet; 1 solve succ; 2 solve fail;
 
     Vector3d gt_p;
@@ -104,6 +110,8 @@ class FeatureManager
     void clearState();
 
     int getFeatureCount();
+    // two camera init 
+    int getFeatureCount_init();
 
     bool addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, double td);
     void debugShow();
@@ -113,17 +121,28 @@ class FeatureManager
 
     //void updateDepth(const VectorXd &x);
     void setDepth(const VectorXd &x);
+    //two camera init 
+    void setDepth_init(const VectorXd &x,int camera_id);
+
     void removeFailures();
     void clearDepth(const VectorXd &x);
     VectorXd getDepthVector();
+    // two camera init 
+    VectorXd getDepthVector_init(int camera_id);
     void triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
+    // two camera init
     void triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ric[],int camera_id);
+
+    void triangulate_init_opt(Vector3d Ps[], Vector3d tic[], Matrix3d ric[],int camera_id);
+
+
     void removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P);
     void removeBack();
     void removeFront(int frame_count);
     void removeOutlier();
     list<FeaturePerId> feature;
     int last_track_num;
+    
 
 #if two_cam_test
     enum MainCam
