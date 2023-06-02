@@ -52,7 +52,7 @@ class Estimator
     void vector2double();
     void double2vector();
     //two camera init 
-    void vector2double_init();
+    void vector2double_init(int camera_id);
     void double2vector_init(int camera_id);
     
     bool failureDetection();
@@ -135,8 +135,6 @@ class Estimator
     Matrix3d Rs[(WINDOW_SIZE + 1)];
     Vector3d Bas[(WINDOW_SIZE + 1)];
     Vector3d Bgs[(WINDOW_SIZE + 1)];
-    Vector3d Bgs_0[(WINDOW_SIZE + 1)];
-    Vector3d Bgs_1[(WINDOW_SIZE + 1)];
     double td;
     // two camera init 
     Vector3d Ps_0[(WINDOW_SIZE + 1)];

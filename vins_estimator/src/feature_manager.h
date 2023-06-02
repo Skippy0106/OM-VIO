@@ -111,7 +111,7 @@ class FeatureManager
 
     int getFeatureCount();
     // two camera init 
-    int getFeatureCount_init();
+    int getFeatureCount_init(int camera_id);
 
     bool addFeatureCheckParallax(int frame_count, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, double td);
     void debugShow();

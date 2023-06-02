@@ -320,7 +320,7 @@ bool Estimator::initialStructure()
     GlobalSFM sfm_cam0,sfm_cam1;
     if(!sfm_cam0.construct(frame_count + 1, Q_cam0, T_cam0, l,
               relative_R_cam0, relative_T_cam0,
-              sfm_f_cam0, sfm_tracked_cam0_points)||
+              sfm_f_cam0, sfm_tracked_cam0_points) || 
               !sfm_cam1.construct(frame_count + 1, Q_cam1, T_cam1, l,
               relative_R_cam1, relative_T_cam1,
               sfm_f_cam1, sfm_tracked_cam1_points))
@@ -540,8 +540,8 @@ bool Estimator::visualInitialAlign()
     //solve scale
 #if two_cam_test
     //int main_cam = f_manager.main_cam;
-    bool result_cam0 = VisualIMUAlignment(all_image_frame, Bgs_0, g, x, 0);
-    bool result_cam1 = VisualIMUAlignment(all_image_frame, Bgs_1, g_1, x_1, 1);
+    bool result_cam0 = VisualIMUAlignment(all_image_frame, Bgs, g, x, 0);
+    bool result_cam1 = VisualIMUAlignment(all_image_frame, Bgs, g_1, x_1, 1);
 #else
     bool result = VisualIMUAlignment(all_image_frame, Bgs, g, x);
 #endif
@@ -692,9 +692,6 @@ bool Estimator::visualInitialAlign()
         Vs_0[i] =rot_diff * Vs_0[i];
         Vs_1[i] =rot_diff_cam1 * Vs_1[i];
     }
-    Ps[0]=rot_diff * Ps_0[0];
-    Rs[0] = rot_diff * Rs_0[0];
-    Vs[0] =rot_diff * Vs_0[0];
     ROS_DEBUG_STREAM("g0     " << g.transpose());
     ROS_DEBUG_STREAM("my R0  " << Utility::R2ypr(Rs[0]).transpose()); 
 
@@ -787,27 +784,10 @@ void Estimator::solveOdometry_init(const map<int, vector<pair<int, Eigen::Matrix
     if (solver_flag == NON_LINEAR)
     {
         TicToc t_tri;
-        f_manager.triangulate_init(Ps_0,  tic, ric,2);
-        f_manager.triangulate_init(Ps_1,  tic, ric,2);
+        f_manager.triangulate_init(Ps_0,  tic, ric,0);
+        f_manager.triangulate_init(Ps_1,  tic, ric,1);
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
 //        std::cout << "=================== optimization ===================" << std::endl;
-        optimization_init();
-        for (int i = 0; i <= WINDOW_SIZE; i++)
-        {
-            if((Ps_0[i]-Ps_1[i]).norm() < 0.01)
-            {
-                std::cout<<"Converge !!!!!"<<std::endl;
-                Ps[i]=Ps_0[i];
-            }
-            else
-            {
-                std::cout<<"Diverage  !!!!!"<<std::endl;
-                Ps[i]=Ps_0[i];
-            }
-            Rs[i]=Rs_0[i];
-            Rs[i]=Rs_0[i];
-        }
-        
         obs_trace(image, header);
 //        std::cout << "=================== optimization_obs ===================" << std::endl;
         optimization_obs();
@@ -857,71 +837,6 @@ void Estimator::vector2double()
     if (ESTIMATE_TD)
         para_Td[0][0] = td;
 }
-
-
-void Estimator::vector2double_init()
-{
-    for (int i = 0; i <= WINDOW_SIZE; i++)
-    {
-        para_Pose_cam0[i][0] = Ps_0[i].x();
-        para_Pose_cam0[i][1] = Ps_0[i].y();
-        para_Pose_cam0[i][2] = Ps_0[i].z();
-        Quaterniond q{Rs_0[i]};
-        para_Pose_cam0[i][3] = q.x();
-        para_Pose_cam0[i][4] = q.y();
-        para_Pose_cam0[i][5] = q.z();
-        para_Pose_cam0[i][6] = q.w();
-
-        para_SpeedBias_cam0[i][0] = Vs_0[i].x();
-        para_SpeedBias_cam0[i][1] = Vs_0[i].y();
-        para_SpeedBias_cam0[i][2] = Vs_0[i].z();
-        
-        para_Pose_cam1[i][0] = Ps_1[i].x();
-        para_Pose_cam1[i][1] = Ps_1[i].y();
-        para_Pose_cam1[i][2] = Ps_1[i].z();
-        Quaterniond q_1{Rs_0[i]};
-        para_Pose_cam1[i][3] = q_1.x();
-        para_Pose_cam1[i][4] = q_1.y();
-        para_Pose_cam1[i][5] = q_1.z();
-        para_Pose_cam1[i][6] = q_1.w();
-
-        para_SpeedBias_cam1[i][0] = Vs_1[i].x();
-        para_SpeedBias_cam1[i][1] = Vs_1[i].y();
-        para_SpeedBias_cam1[i][2] = Vs_1[i].z();
-
-
-        para_SpeedBias[i][3] = Bas[i].x();
-        para_SpeedBias[i][4] = Bas[i].y();
-        para_SpeedBias[i][5] = Bas[i].z();
-
-        para_SpeedBias[i][6] = Bas[i].x();
-        para_SpeedBias[i][7] = Bas[i].y();
-        para_SpeedBias[i][8] = Bas[i].z();
-    }
-    for (int i = 0; i < NUM_OF_CAM; i++)
-    {
-        para_Ex_Pose[i][0] = tic[i].x();
-        para_Ex_Pose[i][1] = tic[i].y();
-        para_Ex_Pose[i][2] = tic[i].z();
-        Quaterniond q{ric[i]};
-        para_Ex_Pose[i][3] = q.x();
-        para_Ex_Pose[i][4] = q.y();
-        para_Ex_Pose[i][5] = q.z();
-        para_Ex_Pose[i][6] = q.w();
-    }
-
-    VectorXd dep_0 = f_manager.getDepthVector_init(0);
-    VectorXd dep_1 = f_manager.getDepthVector_init(1);
-    for (int i = 0; i < f_manager.getFeatureCount_init(); i++)
-    {
-        para_Feature_cam0[i][0] = dep_0(i);
-        para_Feature_cam1[i][0] = dep_1(i);
-    }
-    if (ESTIMATE_TD)
-        para_Td[0][0] = td;
-}
-
-
 
 void Estimator::double2vector()
 {
@@ -1014,136 +929,195 @@ void Estimator::double2vector()
     }
 }
 
-void Estimator::double2vector_init(int camera_id)
-{
-    Vector3d origin_R0;
-    Vector3d origin_P0;
-    Vector3d origin_R00;
-    if(camera_id == 0)
-    {
-        origin_R0 = Utility::R2ypr(Rs_0[0]);
-        origin_P0 = Ps_0[0];
-        origin_R00 = Utility::R2ypr(Quaterniond(para_Pose_cam0[0][6],
-                                                    para_Pose_cam0[0][3],
-                                                    para_Pose_cam0[0][4],
-                                                    para_Pose_cam0[0][5]).toRotationMatrix());
-    }
+// void Estimator::vector2double_init(int camera_id)
+// {
+//     for(int i =0 ; i<=WINDOW_SIZE;i++)
+//     {
+//         if(camera_id == 0)
+//         {
+//             para_Pose_cam0[i][0] = Ps_0[i].x();
+//             para_Pose_cam0[i][1] = Ps_0[i].y();
+//             para_Pose_cam0[i][2] = Ps_0[i].z();
+//             Quaterniond q{Rs_0[i]};
+//             para_Pose_cam0[i][3] = q.x();
+//             para_Pose_cam0[i][4] = q.y();
+//             para_Pose_cam0[i][5] = q.z();
+//             para_Pose_cam0[i][6] = q.w();
 
-    else if (camera_id == 1)
-    {
-        origin_R0 = Utility::R2ypr(Rs_1[0]);
-        origin_P0 = Ps_1[0];
-        origin_R00 = Utility::R2ypr(Quaterniond(para_Pose_cam1[0][6],
-                                                    para_Pose_cam1[0][3],
-                                                    para_Pose_cam1[0][4],
-                                                    para_Pose_cam1[0][5]).toRotationMatrix());
-    }
+//             para_SpeedBias_cam0[i][0] = Vs_0[i].x();
+//             para_SpeedBias_cam0[i][1] = Vs_0[i].y();
+//             para_SpeedBias_cam0[i][2] = Vs_0[i].z();
 
-    if (failure_occur)
-    {
-        origin_R0 = Utility::R2ypr(last_R0);
-        origin_P0 = last_P0;
-        failure_occur = 0;
-    }
-    double y_diff = origin_R0.x() - origin_R00.x();
-    //TODO
-    Matrix3d rot_diff = Utility::ypr2R(Vector3d(y_diff, 0, 0));
-    if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
-    {
-        ROS_DEBUG("euler singular point!");
-        if(camera_id == 0 )
-        {
-            rot_diff = Rs_0[0] * Quaterniond(para_Pose_cam0[0][6],
-                                para_Pose_cam0[0][3],
-                                para_Pose_cam0[0][4],
-                                para_Pose_cam0[0][5]).toRotationMatrix().transpose();
-        }
-        else if (camera_id == 1)
-        {
-            rot_diff = Rs_1[0] * Quaterniond(para_Pose_cam1[0][6],
-                    para_Pose_cam1[0][3],
-                    para_Pose_cam1[0][4],
-                    para_Pose_cam1[0][5]).toRotationMatrix().transpose();
-        }
-    }
+//             para_SpeedBias_cam0[i][3] = Bas[i].x();
+//             para_SpeedBias_cam0[i][4] = Bas[i].y();
+//             para_SpeedBias_cam0[i][5] = Bas[i].z();
 
-    for (int i = 0; i <= WINDOW_SIZE; i++)
-    {
-        if (camera_id == 0)
-        {
-            Rs_0[i] = rot_diff * Quaterniond(para_Pose_cam0[i][6], para_Pose_cam0[i][3], para_Pose_cam0[i][4], para_Pose_cam0[i][5]).normalized().toRotationMatrix();
+//             para_SpeedBias_cam0[i][6] = Bgs[i].x();
+//             para_SpeedBias_cam0[i][7] = Bgs[i].y();
+//             para_SpeedBias_cam0[i][8] = Bgs[i].z();
+//         }
+//         else if(camera_id == 1)
+//         {
+//             para_Pose_cam1[i][0] = Ps_1[i].x();
+//             para_Pose_cam1[i][1] = Ps_1[i].y();
+//             para_Pose_cam1[i][2] = Ps_1[i].z();
+//             Quaterniond q{Rs_1[i]};
+//             para_Pose_cam1[i][3] = q.x();
+//             para_Pose_cam1[i][4] = q.y();
+//             para_Pose_cam1[i][5] = q.z();
+//             para_Pose_cam1[i][6] = q.w();
+
+//             para_SpeedBias_cam1[i][0] = Vs_1[i].x();
+//             para_SpeedBias_cam1[i][1] = Vs_1[i].y();
+//             para_SpeedBias_cam1[i][2] = Vs_1[i].z();
+
+//             para_SpeedBias_cam1[i][3] = Bas[i].x();
+//             para_SpeedBias_cam1[i][4] = Bas[i].y();
+//             para_SpeedBias_cam1[i][5] = Bas[i].z();
+
+//             para_SpeedBias_cam1[i][6] = Bgs[i].x();
+//             para_SpeedBias_cam1[i][7] = Bgs[i].y();
+//             para_SpeedBias_cam1[i][8] = Bgs[i].z();
+//         }
+//     }
+
+//     for (int i =0; i < NUM_OF_CAM ; i++)
+//     {
+//         para_Ex_Pose[i][0] = tic[i].x();
+//         para_Ex_Pose[i][1] = tic[i].y();
+//         para_Ex_Pose[i][2] = tic[i].z();
+//         Quaterniond q{ric[i]};
+//         para_Ex_Pose[i][3] = q.x();
+//         para_Ex_Pose[i][4] = q.y();
+//         para_Ex_Pose[i][5] = q.z();
+//         para_Ex_Pose[i][6] = q.w();
+//     }
+
+//     VectorXd dep = f_manager.getDepthVector_init(camera_id);
+//     for (int i  =  0; i < f_manager.getFeatureCount_init(camera_id); i ++)
+//     {
+//         if (camera_id == 0)
+//         {
+//             para_Feature_cam0[i][0] = dep(i);
+//         }
+//         else if (camera_id == 1)
+//         {
+//             para_Feature_cam1[i][0] = dep(i);
+//         }
+//         if (ESTIMATE_TD)
+//             para_Td[0][0] = td;
+//     }  
+// }
+// void Estimator::double2vector_init(int camera_id)
+// {
+//     Vector3d origin_R0 ;
+//     Vector3d origin_P0 ;
+//     Matrix3d rot_diff ;
+//     double y_diff ;
+//     if (camera_id == 0)
+//     {
+//         origin_R0 = Utility::R2ypr(Rs_0[0]);
+//         origin_P0 = Ps_0[0];
+
+//         if (failure_occur)
+//         {
+//             origin_R0 = Utility::R2ypr(last_R0);
+//             origin_P0 = last_P0;
+//             failure_occur = 0;
+//         }
+//         Vector3d origin_R00 = Utility::R2ypr(Quaterniond(para_Pose_cam0[0][6],
+//                                                     para_Pose_cam0[0][3],
+//                                                     para_Pose_cam0[0][4],
+//                                                     para_Pose_cam0[0][5]).toRotationMatrix());
+//         y_diff = origin_R0.x() - origin_R00.x();
+
+//         Matrix3d rot_diff = Utility::ypr2R(Vector3d(y_diff, 0, 0));
+//         if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
+//         {
+//             ROS_DEBUG("euler singular point!");
+//             rot_diff = Rs[0] * Quaterniond(para_Pose_cam0[0][6],
+//                                         para_Pose_cam0[0][3],
+//                                         para_Pose_cam0[0][4],
+//                                         para_Pose_cam0[0][5]).toRotationMatrix().transpose();
+//         }
+//     }
+//     else if (camera_id == 1)
+//     {
+//         Vector3d origin_R0 = Utility::R2ypr(Rs_1[0]);
+//         Vector3d origin_P0 = Ps_1[0];
+
+//         if (failure_occur)
+//         {
+//             origin_R0 = Utility::R2ypr(last_R0);
+//             origin_P0 = last_P0;
+//             failure_occur = 0;
+//         }
+//         Vector3d origin_R00 = Utility::R2ypr(Quaterniond(para_Pose_cam1[0][6],
+//                                                     para_Pose_cam1[0][3],
+//                                                     para_Pose_cam1[0][4],
+//                                                     para_Pose_cam1[0][5]).toRotationMatrix());
+//         double y_diff = origin_R0.x() - origin_R00.x();
+//         Matrix3d rot_diff = Utility::ypr2R(Vector3d(y_diff, 0, 0));
+//         if (abs(abs(origin_R0.y()) - 90) < 1.0 || abs(abs(origin_R00.y()) - 90) < 1.0)
+//         {
+//             ROS_DEBUG("euler singular point!");
+//             rot_diff = Rs[0] * Quaterniond(para_Pose_cam0[0][6],
+//                                         para_Pose_cam0[0][3],
+//                                         para_Pose_cam0[0][4],
+//                                         para_Pose_cam0[0][5]).toRotationMatrix().transpose();
+//         }
+//     }
+//     for (int i = 0 ; i <=WINDOW_SIZE ; i ++)
+//     {
+//         if (camera_id == 0)
+//         {
+//             Rs_0[i] = rot_diff * Quaterniond(para_Pose_cam0[i][6], para_Pose_cam0[i][3], para_Pose_cam0[i][4], para_Pose_cam0[i][5]).normalized().toRotationMatrix();
             
-            Ps_0[i] = rot_diff * Vector3d(para_Pose_cam0[i][0] - para_Pose_cam0[0][0],
-                                    para_Pose_cam0[i][1] - para_Pose_cam0[0][1],
-                                    para_Pose_cam0[i][2] - para_Pose_cam0[0][2]) + origin_P0;
+//             Ps_0[i] = rot_diff * Vector3d(para_Pose_cam0[i][0] - para_Pose_cam0[0][0],
+//                                     para_Pose_cam0[i][1] - para_Pose_cam0[0][1],
+//                                     para_Pose_cam0[i][2] - para_Pose_cam0[0][2]) + origin_P0;
 
-            Vs_0[i] = rot_diff * Vector3d(para_SpeedBias[i][0],
-                                        para_SpeedBias_cam0[i][1],
-                                        para_SpeedBias_cam0[i][2]);
-        }
+//             Vs_0[i] = rot_diff * Vector3d(para_SpeedBias_cam0[i][0],
+//                                         para_SpeedBias_cam0[i][1],
+//                                         para_SpeedBias_cam0[i][2]);
 
-        else if (camera_id == 1)
-        {
-            Rs_1[i] = rot_diff * Quaterniond(para_Pose_cam1[i][6], para_Pose_cam1[i][3], para_Pose_cam1[i][4], para_Pose_cam1[i][5]).normalized().toRotationMatrix();
+//             Bas[i] = Vector3d(para_SpeedBias_cam0[i][3],
+//                             para_SpeedBias_cam0[i][4],
+//                             para_SpeedBias_cam0[i][5]);
+
+//             Bgs[i] = Vector3d(para_SpeedBias_cam0[i][6],
+//                             para_SpeedBias_cam0[i][7],
+//                             para_SpeedBias_cam0[i][8]);
+//         }
+
+//         else if (camera_id == 0)
+//         {
+//             Rs_1[i] = rot_diff * Quaterniond(para_Pose_cam1[i][6], para_Pose_cam1[i][3], para_Pose_cam1[i][4], para_Pose_cam1[i][5]).normalized().toRotationMatrix();
             
-            Ps_1[i] = rot_diff * Vector3d(para_Pose_cam1[i][0] - para_Pose_cam1[0][0],
-                                    para_Pose_cam1[i][1] - para_Pose_cam1[0][1],
-                                    para_Pose_cam1[i][2] - para_Pose_cam1[0][2]) + origin_P0;
+//             Ps_1[i] = rot_diff * Vector3d(para_Pose_cam1[i][0] - para_Pose_cam1[0][0],
+//                                     para_Pose_cam1[i][1] - para_Pose_cam1[0][1],
+//                                     para_Pose_cam1[i][2] - para_Pose_cam1[0][2]) + origin_P0;
 
-            Vs_1[i] = rot_diff * Vector3d(para_SpeedBias_cam1[i][0],
-                                        para_SpeedBias_cam1[i][1],
-                                        para_SpeedBias[i][2]);
-        }
-        Bas[i] = Vector3d(para_SpeedBias[i][3],
-                          para_SpeedBias[i][4],
-                          para_SpeedBias[i][5]);
+//             Vs_1[i] = rot_diff * Vector3d(para_SpeedBias_cam1[i][0],
+//                                         para_SpeedBias_cam1[i][1],
+//                                         para_SpeedBias_cam1[i][2]);
 
-        Bgs[i] = Vector3d(para_SpeedBias[i][6],
-                          para_SpeedBias[i][7],
-                          para_SpeedBias[i][8]);
-    }
+//             Bas[i] = Vector3d(para_SpeedBias_cam1[i][3],
+//                             para_SpeedBias_cam1[i][4],
+//                             para_SpeedBias_cam1[i][5]);
 
-    for (int i = 0; i < NUM_OF_CAM; i++)
-    {
-        tic[i] = Vector3d(para_Ex_Pose[i][0],
-                          para_Ex_Pose[i][1],
-                          para_Ex_Pose[i][2]);
-        ric[i] = Quaterniond(para_Ex_Pose[i][6],
-                             para_Ex_Pose[i][3],
-                             para_Ex_Pose[i][4],
-                             para_Ex_Pose[i][5]).toRotationMatrix();
-    }
-
-    VectorXd dep_0 = f_manager.getDepthVector_init(0);
-    for (int i = 0; i < f_manager.getFeatureCount(); i++)
-        dep_0(i) = para_Feature[i][0];
-    f_manager.setDepth(dep_0);
-    if (ESTIMATE_TD)
-        td = para_Td[0][0];
-
-    // relative info between two loop frame
-    if(relocalization_info)
-    { 
-        Matrix3d relo_r;
-        Vector3d relo_t;
-        relo_r = rot_diff * Quaterniond(relo_Pose[6], relo_Pose[3], relo_Pose[4], relo_Pose[5]).normalized().toRotationMatrix();
-        relo_t = rot_diff * Vector3d(relo_Pose[0] - para_Pose[0][0],
-                                     relo_Pose[1] - para_Pose[0][1],
-                                     relo_Pose[2] - para_Pose[0][2]) + origin_P0;
-        double drift_correct_yaw;
-        drift_correct_yaw = Utility::R2ypr(prev_relo_r).x() - Utility::R2ypr(relo_r).x();
-        drift_correct_r = Utility::ypr2R(Vector3d(drift_correct_yaw, 0, 0));
-        drift_correct_t = prev_relo_t - drift_correct_r * relo_t;   
-        relo_relative_t = relo_r.transpose() * (Ps[relo_frame_local_index] - relo_t);
-        relo_relative_q = relo_r.transpose() * Rs[relo_frame_local_index];
-        relo_relative_yaw = Utility::normalizeAngle(Utility::R2ypr(Rs[relo_frame_local_index]).x() - Utility::R2ypr(relo_r).x());
-        //cout << "vins relo " << endl;
-        //cout << "vins relative_t " << relo_relative_t.transpose() << endl;
-        //cout << "vins relative_yaw " <<relo_relative_yaw << endl;
-        relocalization_info = 0;    
-
-    }
-}
+//             Bgs[i] = Vector3d(para_SpeedBias_cam1[i][6],
+//                             para_SpeedBias_cam1[i][7],
+//                             para_SpeedBias_cam1[i][8]);
+//         }
+//     }
+//     VectorXd dep = f_manager.getDepthVector_init(camera_id);
+//     for (int i = 0; i < f_manager.getFeatureCount_init(camera_id); i++)
+//         dep(i) = para_Feature[i][0];
+//     f_manager.setDepth_init(dep,camera_id);
+//     if (ESTIMATE_TD)
+//         td = para_Td[0][0];
+// }
 
 bool Estimator::failureDetection()
 {
@@ -1386,209 +1360,6 @@ void Estimator::optimization()
     ROS_DEBUG("solver costs: %f", t_solver.toc());
 
     double2vector();
-}
-void Estimator::optimization_init()
-{
-#if two_cam_test
-//    f_manager.main_cam = f_manager.CAM0;
-//    f_manager.main_cam = f_manager.CAM1;
-#endif
-
-    ceres::Problem problem;
-    ceres::LossFunction *loss_function;
-    //loss_function = new ceres::HuberLoss(1.0);
-    loss_function = new ceres::CauchyLoss(1.0);
-    for (int i = 0; i < WINDOW_SIZE + 1; i++)
-    {
-        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-        problem.AddParameterBlock(para_Pose_cam0[i], SIZE_POSE, local_parameterization);
-        problem.AddParameterBlock(para_Pose_cam1[i], SIZE_POSE, local_parameterization);
-        problem.AddParameterBlock(para_SpeedBias_cam0[i], SIZE_SPEEDBIAS);
-        problem.AddParameterBlock(para_SpeedBias_cam1[i], SIZE_SPEEDBIAS);
-    }
-    for (int i = 0; i < NUM_OF_CAM; i++)
-    {
-        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-        problem.AddParameterBlock(para_Ex_Pose[i], SIZE_POSE, local_parameterization);
-        if (!ESTIMATE_EXTRINSIC)
-        {
-            ROS_DEBUG("fix extinsic param");
-            problem.SetParameterBlockConstant(para_Ex_Pose[i]);
-        }
-        else
-            ROS_DEBUG("estimate extinsic param");
-    }
-    if (ESTIMATE_TD)
-    {
-        problem.AddParameterBlock(para_Td[0], 1);
-        //problem.SetParameterBlockConstant(para_Td[0]);
-    }
-
-    TicToc t_whole, t_prepare;
-    vector2double_init();
-
-    if (last_marginalization_info)
-    {
-        // construct new marginlization_factor
-        MarginalizationFactor *marginalization_factor = new MarginalizationFactor(last_marginalization_info);
-        problem.AddResidualBlock(marginalization_factor, NULL,
-                                 last_marginalization_parameter_blocks);
-    }
-
-    for (int i = 0; i < WINDOW_SIZE; i++)
-    {
-        int j = i + 1;
-        if (pre_integrations[j]->sum_dt > 10.0)
-            continue;
-        IMUFactor* imu_factor = new IMUFactor(pre_integrations[j]);
-        IMUFactor* imu_factor_cam1 = new IMUFactor(pre_integrations[j]);
-        problem.AddResidualBlock(imu_factor, NULL, para_Pose_cam0[i], para_SpeedBias_cam0[i], para_Pose_cam0[j], para_SpeedBias_cam0[j]);
-        problem.AddResidualBlock(imu_factor_cam1, NULL, para_Pose_cam1[i], para_SpeedBias_cam1[i], para_Pose_cam1[j], para_SpeedBias_cam1[j]);
-    }
-    int f_m_cnt = 0;
-    int feature_index = -1;
-    valid_feature = 0; // obs
-    for (auto &it_per_id : f_manager.feature)
-    {
-        it_per_id.used_num = it_per_id.feature_per_frame.size();
-        if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
-            continue;
-
-#if two_cam_test
-        // the first optimize only depends on features in camesra0
-        if (f_manager.main_cam == f_manager.CAM0)
-        {
-            if (it_per_id.feature_per_frame[0].camera_id != 0) continue;
-        }
-        else if (f_manager.main_cam == f_manager.CAM1)
-            if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
-#endif
-        ++feature_index;
-        ++valid_feature; //obs
-
-        int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
-
-        Vector3d pts_i = it_per_id.feature_per_frame[0].point;
-
-//        std::cout << "feature_id: " << it_per_id.feature_id << std::endl;
-        for (auto &it_per_frame : it_per_id.feature_per_frame)
-        {
-            imu_j++;
-            if (imu_i == imu_j)
-            {
-                continue;
-            }
-            Vector3d pts_j = it_per_frame.point;
-
-            if (ESTIMATE_TD)
-            {
-                    ProjectionTdFactor *f_td = new ProjectionTdFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
-                                                                     it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                     it_per_id.feature_per_frame[0].uv.y(), it_per_frame.uv.y());
-#if two_cam_test
-                    problem.AddResidualBlock(f_td, loss_function, para_Pose_cam0[imu_i], para_Pose_cam0[imu_j], para_Ex_Pose[it_per_frame.camera_id], para_Feature_cam0[feature_index], para_Td[0]);
-                    problem.AddResidualBlock(f_td, loss_function, para_Pose_cam1[imu_i], para_Pose_cam1[imu_j], para_Ex_Pose[it_per_frame.camera_id], para_Feature_cam1[feature_index], para_Td[0]);
-#else
-                    problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
-#endif                    /*
-                    double **para = new double *[5];
-                    para[0] = para_Pose[imu_i];
-                    para[1] = para_Pose[imu_j];
-                    para[2] = para_Ex_Pose[0];
-                    para[3] = para_Feature[feature_index];
-                    para[4] = para_Td[0];
-                    f_td->check(para);
-                    */
-            }
-            else
-            {
-                ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
-                ProjectionFactor *f_1 = new ProjectionFactor(pts_i, pts_j);
-#if two_cam_test
-                problem.AddResidualBlock(f, loss_function, para_Pose_cam0[imu_i], para_Pose_cam0[imu_j], para_Ex_Pose[it_per_frame.camera_id], para_Feature_cam0[feature_index]);
-                problem.AddResidualBlock(f_1, loss_function, para_Pose_cam1[imu_i], para_Pose_cam1[imu_j], para_Ex_Pose[it_per_frame.camera_id], para_Feature_cam1[feature_index]);
-#else
-                problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index]);
-#endif
-            }
-            f_m_cnt++;
-        }
-    }
-    //ROS_INFO("1st measurement count: %d", f_m_cnt);
-    ROS_DEBUG("visual measurement count: %d", f_m_cnt);
-    ROS_DEBUG("prepare for ceres: %f", t_prepare.toc());
-
-    if(relocalization_info)
-    {
-        //printf("set relocalization factor! \n");
-        ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
-        problem.AddParameterBlock(relo_Pose, SIZE_POSE, local_parameterization);
-        int retrive_feature_index = 0;
-        int feature_index = -1;
-        for (auto &it_per_id : f_manager.feature)
-        {
-            it_per_id.used_num = it_per_id.feature_per_frame.size();
-            if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
-                continue;
-
-#if two_cam_test
-            // the first optimize only depends on features in camesra0
-            if (f_manager.main_cam == f_manager.CAM0)
-            {
-                if (it_per_id.feature_per_frame[0].camera_id != 0) continue;
-            }
-            else if (f_manager.main_cam == f_manager.CAM1)
-                if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
-#endif
-
-            ++feature_index;
-            int start = it_per_id.start_frame;
-            if(start <= relo_frame_local_index)
-            {
-                while((int)match_points[retrive_feature_index].z() < it_per_id.feature_id)
-                {
-                    retrive_feature_index++;
-                }
-                if((int)match_points[retrive_feature_index].z() == it_per_id.feature_id)
-                {
-                    Vector3d pts_j = Vector3d(match_points[retrive_feature_index].x(), match_points[retrive_feature_index].y(), 1.0);
-                    Vector3d pts_i = it_per_id.feature_per_frame[0].point;
-
-                    ProjectionFactor *f = new ProjectionFactor(pts_i, pts_j);
-#if two_cam_test
-                    problem.AddResidualBlock(f, loss_function, para_Pose_cam0[start], relo_Pose, para_Ex_Pose[it_per_id.feature_per_frame[0].camera_id], para_Feature_cam0[feature_index]);
-                    problem.AddResidualBlock(f, loss_function, para_Pose_cam1[start], relo_Pose, para_Ex_Pose[it_per_id.feature_per_frame[0].camera_id], para_Feature_cam1[feature_index]);
-#else
-                    problem.AddResidualBlock(f, loss_function, para_Pose[start], relo_Pose, para_Ex_Pose[0], para_Feature[feature_index]);
-#endif
-                    retrive_feature_index++;
-                }
-            }
-        }
-    }
-
-    ceres::Solver::Options options;
-
-    options.linear_solver_type = ceres::DENSE_SCHUR;
-    //options.num_threads = 2;
-    options.trust_region_strategy_type = ceres::DOGLEG;
-    options.max_num_iterations = NUM_ITERATIONS;
-    //options.use_explicit_schur_complement = true;
-    //options.minimizer_progress_to_stdout = true;
-    //options.use_nonmonotonic_steps = true;
-    if (marginalization_flag == MARGIN_OLD)
-        options.max_solver_time_in_seconds = SOLVER_TIME * 4.0 / 5.0;
-    else
-        options.max_solver_time_in_seconds = SOLVER_TIME;
-    TicToc t_solver;
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
-    //cout << summary.BriefReport() << endl;
-    ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
-    ROS_DEBUG("solver costs: %f", t_solver.toc());
-
-    double2vector_init(0);
-    double2vector_init(1);
 }
 
 void Estimator::optimization_obs()

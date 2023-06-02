@@ -32,13 +32,6 @@ int FeatureManager::getFeatureCount()
     {
 
         it.used_num = it.feature_per_frame.size();
-
-//        if (it.used_num >= 2 && it.start_frame < WINDOW_SIZE - 2)
-//        {
-//            cnt++;
-//        }
-
-        //test
         if (!(it.used_num >= 2 && it.start_frame < WINDOW_SIZE - 2))
             continue;
 
@@ -57,13 +50,15 @@ int FeatureManager::getFeatureCount()
     return cnt;
 }
 
-int FeatureManager::getFeatureCount_init()
+int FeatureManager::getFeatureCount_init(int camera_id)
 {
     int cnt = 0;
     for (auto &it : feature)
     {
         it.used_num = it.feature_per_frame.size();
         if (!(it.used_num >= 2 && it.start_frame < WINDOW_SIZE - 2))
+            continue;
+        if (it.feature_per_frame[0].camera_id!= camera_id)
             continue;
         cnt++;
     }
@@ -333,7 +328,7 @@ VectorXd FeatureManager::getDepthVector()
 //two camera init 
 VectorXd FeatureManager::getDepthVector_init(int camera_id)
 {
-    VectorXd dep_vec(getFeatureCount_init());
+    VectorXd dep_vec(getFeatureCount_init(camera_id));
     int feature_index = -1;
     for (auto &it_per_id : feature)
     {
