@@ -1,7 +1,7 @@
 <launch>
     <!--arg name="config_path" default = "$(find feature_tracker)/../config/hilti/2021/hilti_config.yaml"/-->
-    <!--arg name="config_path" default = "$(find feature_tracker)/../config/hilti/2021/hilti_imu_config.yaml"/-->
-    <arg name="config_path" default = "$(find feature_tracker)/../config/hilti/2022/hilti_imu_config.yaml"/>
+    <arg name="config_path" default = "$(find feature_tracker)/../config/hilti/2021/hilti_imu_config.yaml"/>
+    <!--arg name="config_path" default = "$(find feature_tracker)/../config/hilti/2022/hilti_imu_config.yaml"/-->
 	<arg name="vins_path" default = "$(find feature_tracker)/../config/../" />
     
     <node name="feature_tracker" pkg="feature_tracker" type="feature_tracker" output="log">

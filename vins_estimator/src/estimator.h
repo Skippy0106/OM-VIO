@@ -47,14 +47,15 @@ class Estimator
     void slideWindowNew();
     void slideWindowOld();
     void optimization();
-    //
-    void optimization_init();
+    void optimization_cam0();
+    void optimization_cam1();
     void vector2double();
     void double2vector();
     //two camera init 
-    void vector2double_init(int camera_id);
-    void double2vector_init(int camera_id);
-    
+    void vector2double_init();
+    void double2vector_init();
+    void estimate_diff();
+
     bool failureDetection();
 
     // obs_control
@@ -204,6 +205,9 @@ class Estimator
 
     MarginalizationInfo *last_marginalization_info;
     vector<double *> last_marginalization_parameter_blocks;
+
+
+    vector<double *> last_marginalization_parameter_blocks_1;
 
     map<double, ImageFrame> all_image_frame;
     IntegrationBase *tmp_pre_integration;

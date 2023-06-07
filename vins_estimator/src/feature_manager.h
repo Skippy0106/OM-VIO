@@ -129,6 +129,8 @@ class FeatureManager
     VectorXd getDepthVector();
     // two camera init 
     VectorXd getDepthVector_init(int camera_id);
+
+    //VectorXd getDepthVector_opt();
     void triangulate(Vector3d Ps[], Vector3d tic[], Matrix3d ric[]);
     // two camera init
     void triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ric[],int camera_id);

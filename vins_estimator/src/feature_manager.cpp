@@ -290,10 +290,13 @@ void FeatureManager::clearDepth(const VectorXd &x)
         else if (main_cam == CAM1)
             if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
 #endif
-
+        //modified 
         it_per_id.estimated_depth = 1.0 / x(++feature_index);
+        it_per_id.estimated_cam0_depth = it_per_id.estimated_depth;
+        it_per_id.estimated_cam1_depth = it_per_id.estimated_depth;
     }
 }
+
 
 VectorXd FeatureManager::getDepthVector()
 {
@@ -324,24 +327,25 @@ VectorXd FeatureManager::getDepthVector()
     }
     return dep_vec;
 }
-
 //two camera init 
 VectorXd FeatureManager::getDepthVector_init(int camera_id)
 {
-    VectorXd dep_vec(getFeatureCount_init(camera_id));
+   VectorXd dep_vec(getFeatureCount());
     int feature_index = -1;
     for (auto &it_per_id : feature)
     {
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
-#if 1
-    if (camera_id == 0)
-        dep_vec(++feature_index) = 1. / it_per_id.estimated_cam0_depth;
-    else if (camera_id == 1)
-        dep_vec(++feature_index) = 1. / it_per_id.estimated_cam1_depth;
-#else
-        dep_vec(++feature_index) = it_per_id->estimated_depth;
+
+#if two_cam_test
+        // the first optimize only depends on features in camesra0
+        if (camera_id == 0)
+        {
+            dep_vec(++feature_index) = 1. / it_per_id.estimated_cam0_depth;
+        }
+        else if (camera_id == 1)
+            dep_vec(++feature_index) = 1. / it_per_id.estimated_cam1_depth;
 #endif
     }
     return dep_vec;
@@ -453,16 +457,6 @@ void FeatureManager::triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ri
         it_per_id.used_num = it_per_id.feature_per_frame.size();
         if (!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
-#if two_cam_test
-       // the first optimize only depends on features in camesra0
-       if (camera_id == 0)
-       {
-           if (it_per_id.feature_per_frame[0].camera_id != 0) continue;
-       }
-       else if (camera_id == 1)
-           if (it_per_id.feature_per_frame[0].camera_id != 1) continue;
-#endif
-
         // if (it_per_id.estimated_depth > 0)
         //     continue;
 
@@ -541,13 +535,6 @@ void FeatureManager::triangulate_init(Vector3d Ps[], Vector3d tic[], Matrix3d ri
         ROS_ASSERT(svd_idx == svd_A.rows());
         Eigen::Vector4d svd_V = Eigen::JacobiSVD<Eigen::MatrixXd>(svd_A, Eigen::ComputeThinV).matrixV().rightCols<1>();
         double svd_method = svd_V[2] / svd_V[3];
-
-        // it_per_id.estimated_depth = svd_method;
-
-        // if (it_per_id.estimated_depth < 0.1)
-        // {
-        //     it_per_id.estimated_depth = INIT_DEPTH;
-        // }
         if(camera_id==0)
         {
             it_per_id.estimated_cam0_depth = svd_method;
