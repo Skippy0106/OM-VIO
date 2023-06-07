@@ -651,9 +651,9 @@ void Estimator::solveOdometry_init(const map<int, vector<pair<int, Eigen::Matrix
         
         f_manager.triangulate_init(Ps_0, tic, ric,0);
         f_manager.triangulate_init(Ps_1, tic, ric,1);
-        ROS_DEBUG("triangulation costs %f", t_tri.toc());
+
         optimization_cam0();
-        // optimization_cam1();
+        optimization_cam1();
         /*do converage check */
         double diff_pos = 0;
         double diff_vel = 0 ;
