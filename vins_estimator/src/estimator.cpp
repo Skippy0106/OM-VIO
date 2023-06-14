@@ -623,6 +623,13 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l 
     return false;
 }
 
+
+
+
+
+
+
+
 void Estimator::solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header)
 {
     if (frame_count < WINDOW_SIZE)
