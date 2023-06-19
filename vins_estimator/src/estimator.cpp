@@ -624,12 +624,6 @@ bool Estimator::relativePose(Matrix3d &relative_R, Vector3d &relative_T, int &l 
 }
 
 
-
-
-
-
-
-
 void Estimator::solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header)
 {
     if (frame_count < WINDOW_SIZE)
@@ -664,18 +658,19 @@ void Estimator::solveOdometry_init(const map<int, vector<pair<int, Eigen::Matrix
         /*do converage check */
         double diff_pos = 0;
         double diff_vel = 0 ;
-        for (int i = 0; i <= WINDOW_SIZE; i++)
-        {
-            diff_pos +=(Ps_0[i]-Ps_1[i]).norm();
-            diff_vel +=(Vs_0[i]-Vs_1[i]).norm();
-            Rs[i]=Rs_0[i];
-            Vs[i]=Vs_0[i];
-            Ps[i]=Ps_0[i];
-        }
+        double pos_threshold = 0.1;
+        double vel_threshold = 0.15;
+
         diff_pos = (diff_pos / WINDOW_SIZE);
         diff_vel = (diff_vel / WINDOW_SIZE);
-        std::cout<<"pos diff = "<<diff_pos<<std::endl;
-        std::cout<<"pos vel = "<<diff_vel<<std::endl;
+        if(diff_pos > pos_threshold || diff_vel > vel_threshold)
+        {
+            obs_check(image, header);
+        }
+        else 
+        {
+            double2vector_init(0);
+        }
     }
 }
 
@@ -888,7 +883,7 @@ void Estimator::vector2double_init()
         para_Td[0][0] = td;
 }
 
-void Estimator::double2vector_init()
+void Estimator::double2vector_init(int camera_id)
 {
     Vector3d origin_R0 = Utility::R2ypr(Rs_0[0]);
     Vector3d origin_P0 = Ps_0[0];
@@ -937,36 +932,36 @@ void Estimator::double2vector_init()
 
     for (int i = 0; i <= WINDOW_SIZE; i++)
     {
-
-        Rs_0[i] = rot_diff * Quaterniond(para_Pose_cam0[i][6], para_Pose_cam0[i][3], para_Pose_cam0[i][4], para_Pose_cam0[i][5]).normalized().toRotationMatrix();
+        if(camera_id == 0)
+        {
+            Rs[i] = rot_diff * Quaterniond(para_Pose_cam0[i][6], para_Pose_cam0[i][3], para_Pose_cam0[i][4], para_Pose_cam0[i][5]).normalized().toRotationMatrix();
         
-        Ps_0[i] = rot_diff * Vector3d(para_Pose_cam0[i][0] - para_Pose_cam0[0][0],
+            Ps[i] = rot_diff * Vector3d(para_Pose_cam0[i][0] - para_Pose_cam0[0][0],
                                 para_Pose_cam0[i][1] - para_Pose_cam0[0][1],
                                 para_Pose_cam0[i][2] - para_Pose_cam0[0][2]) + origin_P0;
 
-        Vs_0[i] = rot_diff * Vector3d(para_SpeedBias_cam0[i][0],
+            Vs[i] = rot_diff * Vector3d(para_SpeedBias_cam0[i][0],
                                     para_SpeedBias_cam0[i][1],
                                     para_SpeedBias_cam0[i][2]);
-
-
-        Rs_1[i] = rot_diff_1 * Quaterniond(para_Pose_cam1[i][6], para_Pose_cam1[i][3], para_Pose_cam1[i][4], para_Pose_cam1[i][5]).normalized().toRotationMatrix();
+            Bas[i] = Vector3d(para_SpeedBias_cam0[i][3],
+                    para_SpeedBias_cam0[i][4],
+                    para_SpeedBias_cam0[i][5]);
+        }
+        else if(camera_id == 1)
+        {
+            Rs[i] = rot_diff_1 * Quaterniond(para_Pose_cam1[i][6], para_Pose_cam1[i][3], para_Pose_cam1[i][4], para_Pose_cam1[i][5]).normalized().toRotationMatrix();
         
-        Ps_1[i] = rot_diff_1 * Vector3d(para_Pose_cam1[i][0] - para_Pose_cam1[0][0],
+            Ps[i] = rot_diff_1 * Vector3d(para_Pose_cam1[i][0] - para_Pose_cam1[0][0],
                                 para_Pose_cam1[i][1] - para_Pose_cam1[0][1],
                                 para_Pose_cam1[i][2] - para_Pose_cam1[0][2]) + origin_P1;
 
-        Vs_1[i] = rot_diff_1 * Vector3d(para_SpeedBias_cam1[i][0],
+            Vs[i] = rot_diff_1 * Vector3d(para_SpeedBias_cam1[i][0],
                                     para_SpeedBias_cam1[i][1],
                                     para_SpeedBias_cam1[i][2]);
-
-
-        Bas[i] = Vector3d(para_SpeedBias_cam1[i][3],
-                          para_SpeedBias_cam1[i][4],
-                          para_SpeedBias_cam1[i][5]);
-
-        Bgs[i] = Vector3d(para_SpeedBias_cam1[i][6],
-                          para_SpeedBias_cam1[i][7],
-                          para_SpeedBias_cam1[i][8]);
+            Bgs[i] = Vector3d(para_SpeedBias_cam1[i][6],
+                    para_SpeedBias_cam1[i][7],
+                    para_SpeedBias_cam1[i][8]);
+        }
     }
 
     for (int i = 0; i < NUM_OF_CAM; i++)
@@ -984,8 +979,14 @@ void Estimator::double2vector_init()
     VectorXd dep_1 = f_manager.getDepthVector_init(1);
     for (int i = 0; i < f_manager.getFeatureCount(); i++)
     {
-        dep_0(i) = para_Feature_cam0[i][0];
-        dep_1(i) = para_Feature_cam1[i][0];
+        if(camera_id == 0)
+        {
+            dep_0(i) = para_Feature_cam0[i][0];
+        }
+        else if (camera_id == 1 )
+        {
+            dep_1(i) = para_Feature_cam1[i][0];
+        }
     }
     f_manager.setDepth(dep_0);
     if (ESTIMATE_TD)
@@ -2066,40 +2067,14 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
     MatrixXd CostFunction_all(9,9);
     CostFunction_all = H_all.transpose() * H_all/ tracked_all_feature_num;
     double OBS_ALL= CostFunction_all.trace();
-    //std::cout << "OBS_0= " << Observation_matrix_trace[0] << std::endl;
-    //std::cout << "OBS_1= " << Observation_matrix_trace[1]  << std::endl;
     std::cout << "OBS_ALL= " << OBS_ALL << std::endl;
-    // set the cam with better Observability be the main camera
-    /*
-    if (Observation_matrix_trace[0] >3*Observation_matrix_trace[1])
-    {
-        f_manager.main_cam = f_manager.CAM0;
-        ROS_INFO("Main camera = CAM0");
-    }
-    else if (Observation_matrix_trace[1] >3*Observation_matrix_trace[0])
-    {
-        f_manager.main_cam = f_manager.CAM1;
-        ROS_INFO("Main camera = CAM1");
-    }
-    else
-    {
-        f_manager.main_cam = f_manager.ALL_CAM;
-    }
-    */
 #else
     MatrixXd CostFunction(9,9);
     CostFunction = H.transpose() * H / tracked_feature_num;
     Observation_matrix_trace = CostFunction.trace();
 #endif
 
-  // debug
-  /*std::cout << "======================" <<std::endl;
-  std::cout << "sameId_pts: " << sameId_pts.size() <<std::endl;
-  std::cout << "pts_observability: " << pts_observability.size() <<std::endl;
-  std::cout << "----------------------" <<std::endl;*/
   static int result_num = 1;
-  //std::cout << result_num << ". Observation_matrix_trace: " << Observation_matrix_trace << std::endl;
-
   std::ofstream file, file_reduce_u, file_reduce_v, file_temp_right, file_each_point;
   file.open ("/home/ncrl/estimation_ws/example.csv", ios::app);
 # if TEST
@@ -2107,16 +2082,9 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 # endif
 
 #if two_cam_test
-/*
-    file << result_num << "," << std::setprecision(15) << header.stamp.toSec() << ","
-         << "camera0" << "," << Observation_matrix_trace[0] << "," << valid_feature << "," << tracked_feature_num << ","
-         << "camera1" << "," << Observation_matrix_trace[1] << "," << valid_feature << "," << tracked_feature_num << "\n";
-         */
+
     file << result_num << "," << std::setprecision(15) << header.stamp.toSec() << ","
          << "all camera" << "," <<OBS_ALL << "," << valid_feature << "," << tracked_all_feature_num << "\n";
-//    std::cout << "camera0: " << Observation_matrix_trace[0] << std::endl << "camera1: " << Observation_matrix_trace[1] << std::endl;
-    //std::cout << "camera0: " << Observation_matrix_trace[0] << std::endl;
-    //std::cout << "camera1: " << Observation_matrix_trace[1] << std::endl;
 #else
     file << result_num << "," << std::setprecision(15) << header.stamp.toSec() << "," << Observation_matrix_trace << "," << valid_feature << "," << tracked_feature_num << "\n";
     inverse_observation_matrix_trace = 1.0 / Observation_matrix_trace;
@@ -2490,7 +2458,303 @@ void Estimator::optimization_cam1()
     ROS_DEBUG("Iterations : %d", static_cast<int>(summary.iterations.size()));
     ROS_DEBUG("solver costs: %f", t_solver.toc());
     std::cout << "complete cam1 initialization"<< std::endl;
-    double2vector_init();
 }
 
 
+void Estimator::obs_check(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header)
+{
+  // initialization step
+#if two_cam_test
+    sameId_pts[0].clear();
+    sameId_pts[1].clear();
+    pts_observability[0].clear();
+    pts_observability[1].clear();
+    pts_all_observability.clear();
+    Eigen::MatrixXd H[2] = {MatrixXd(2*f_manager.last_track_num,9), MatrixXd(2*f_manager.last_track_num,9)}; // maybe the matrix is too large for one frame
+    //pointwise method
+    Eigen::MatrixXd H_all(2*f_manager.last_track_num,9);
+    H_all.setZero();
+    H[0].setZero();
+    H[1].setZero();
+    // check the number of filted feature point 
+    int num_filted_point = 0 ;
+    obs_sum = 0;
+#else
+    sameId_pts.clear();
+    pts_observability.clear();
+    Eigen::MatrixXd H(2*f_manager.last_track_num,9);
+    H.setZero();
+#endif
+
+  // 把f_manager中這一貞image有出現的image feature都提取出來存在tracked_feature
+  // current image
+  list<FeaturePerId> tracked_feature;
+  for (auto &it_pts:image)
+  {
+    int feature_id = it_pts.first;
+    auto it = find_if(f_manager.feature.begin(), f_manager.feature.end(), [feature_id](FeaturePerId &it){return it.feature_id == feature_id;});
+    if (it->feature_id == feature_id)
+    {
+      tracked_feature.push_back(*it);
+    }
+  }
+
+  int feature_index = -1;
+#if two_cam_test
+    int tracked_feature_num[2] = {0};
+    int tracked_all_feature_num = 0;
+#else
+    int tracked_feature_num = 0; // the index is for H
+#endif
+  for (auto &it_per_id : f_manager.feature)
+  {
+    it_per_id.used_num = it_per_id.feature_per_frame.size();
+
+#if two_cam_test
+    int camera_id = it_per_id.feature_per_frame[0].camera_id;
+    assert(camera_id == 0 || camera_id == 1);
+#endif
+
+    // 以下條件會導致當前貞中的某些（灰色）點被濾除
+    if(!(it_per_id.used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
+      continue;
+
+    // current image
+    int feature_id = it_per_id.feature_id;
+    auto it = find_if(tracked_feature.begin(), tracked_feature.end(), [feature_id](FeaturePerId &it){return it.feature_id == feature_id;});
+    if (it == tracked_feature.end()) // similar to (it->feature_id != feature_id)
+    {
+      feature_index++;
+      continue;
+    }
+
+    int imu_i = it_per_id.start_frame;
+    int imu_j = it_per_id.endFrame();
+    Vector3d pts_i = it_per_id.feature_per_frame[imu_i].point;
+//    Vector3d pts_j = it_per_id.feature_per_frame[imu_j].point;
+// two initial guess 
+    Vector3d Pi_0(para_Pose_cam0[imu_i][0], para_Pose_cam0[imu_i][1], para_Pose_cam0[imu_i][2]);
+    Quaterniond Qi_0(para_Pose_cam0[imu_i][6], para_Pose_cam0[imu_i][3], para_Pose_cam0[imu_i][4], para_Pose_cam0[imu_i][5]);
+
+    Vector3d Pi_1(para_Pose_cam1[imu_i][0], para_Pose_cam1[imu_i][1], para_Pose_cam1[imu_i][2]);
+    Quaterniond Qi_1(para_Pose_cam1[imu_i][6], para_Pose_cam1[imu_i][3], para_Pose_cam1[imu_i][4], para_Pose_cam1[imu_i][5]);
+
+
+
+    Vector3d Pj_0(para_Pose_cam0[imu_j][0], para_Pose_cam0[imu_j][1], para_Pose_cam0[imu_j][2]);
+    Quaterniond Qj_0(para_Pose_cam0[imu_j][6], para_Pose_cam0[imu_j][3], para_Pose_cam0[imu_j][4], para_Pose_cam0[imu_j][5]);
+
+    Vector3d Pj_1(para_Pose_cam1[imu_j][0], para_Pose_cam1[imu_j][1], para_Pose_cam1[imu_j][2]);
+    Quaterniond Qj_1(para_Pose_cam1[imu_j][6], para_Pose_cam1[imu_j][3], para_Pose_cam1[imu_j][4], para_Pose_cam1[imu_j][5]);
+
+
+#if two_cam_test
+        Vector3d tic0(para_Ex_Pose[0][0], para_Ex_Pose[0][1], para_Ex_Pose[0][2]);
+        Vector3d tic1(para_Ex_Pose[1][0], para_Ex_Pose[1][1], para_Ex_Pose[1][2]);
+        Quaterniond qic0(para_Ex_Pose[0][6], para_Ex_Pose[0][3], para_Ex_Pose[0][4], para_Ex_Pose[0][5]);
+        Quaterniond qic1(para_Ex_Pose[1][6], para_Ex_Pose[1][3], para_Ex_Pose[1][4], para_Ex_Pose[1][5]);
+        Matrix3d ric0 = qic0.toRotationMatrix();
+        Matrix3d ric1 = qic1.toRotationMatrix();
+#else
+        Vector3d tic(para_Ex_Pose[0][0], para_Ex_Pose[0][1], para_Ex_Pose[0][2]);
+        Quaterniond qic(para_Ex_Pose[0][6], para_Ex_Pose[0][3], para_Ex_Pose[0][4], para_Ex_Pose[0][5]);
+        Matrix3d ric = qic.toRotationMatrix();
+#endif
+
+    Matrix3d Ri_0 = Qi_0.toRotationMatrix();
+    Matrix3d Rj_0 = Qj_0.toRotationMatrix();
+
+    Matrix3d Ri_1 = Qi_1.toRotationMatrix();
+    Matrix3d Rj_1 = Qj_1.toRotationMatrix();
+
+
+    double inv_dep_i_cam0 = para_Feature_cam0[feature_index][0];
+
+    double inv_dep_i_cam1 = para_Feature_cam1[feature_index][0];
+
+    Vector3d pts_camera_i_0 = pts_i/inv_dep_i_cam0;
+
+    Vector3d pts_camera_i_1 = pts_i/inv_dep_i_cam1;
+#if two_cam_test
+        Vector3d pts_imu_i;
+        Vector3d pts_w;
+        Vector3d pts_imu_j;
+        Vector3d pts_camera_j;
+
+        if (camera_id == 0)
+        {
+            pts_imu_i = qic0 * pts_camera_i_0 + tic0;
+            pts_w = Qi_0 * pts_imu_i + Pi_0;
+            pts_imu_j = Qj_0.inverse() * (pts_w - Pj_0);
+            pts_camera_j = qic0.inverse() * (pts_imu_j - tic0);
+        }
+        else if (camera_id == 1)
+        {
+            pts_imu_i = qic1 * pts_camera_i_1 + tic1;
+            pts_w = Qi_1 * pts_imu_i + Pi_1;
+            pts_imu_j = Qj_1.inverse() * (pts_w - Pj_1);
+            pts_camera_j = qic1.inverse() * (pts_imu_j - tic1);
+        }
+#else
+        Vector3d pts_imu_i = qic * pts_camera_i + tic;
+        Vector3d pts_w = Qi * pts_imu_i + Pi;
+        Vector3d pts_imu_j = Qj.inverse() * (pts_w - Pj);
+        Vector3d pts_camera_j = qic.inverse() * (pts_imu_j - tic);
+#endif
+    double dep_j = pts_camera_j.z();
+
+    //不知道為什麼會有 dep_j = 0
+//    if(dep_j == 0.0)
+//      continue;
+
+    MatrixXd reduce(2,3);
+    reduce << 1 / dep_j, 0., -pts_camera_j(0) / (dep_j * dep_j),
+              0., 1 / dep_j, -pts_camera_j(1) / (dep_j * dep_j);
+
+#if two_cam_test
+        Matrix3d R_c_b;
+        if (camera_id == 0) R_c_b = ric0.transpose();
+        else if (camera_id == 1) R_c_b = ric1.transpose();
+#else
+        Matrix3d R_c_b = ric.transpose();
+#endif
+    Matrix3d R_bj_w ;
+    Matrix3d R_w_bi ;
+    double lamda_l ;
+    debug_lamda_l ; // debug
+    Vector3d p_w_bi;
+     Vector3d p_w_bj;
+
+
+    if(camera_id == 0)
+    {
+        R_bj_w = Rj_0.transpose();
+        R_w_bi = Ri_0;
+        lamda_l = inv_dep_i_cam0;
+        debug_lamda_l = lamda_l; // debug
+
+        p_w_bi = Pi_0;
+        p_w_bj= Pj_0;
+    }
+    else if (camera_id == 1)
+    {
+        R_bj_w = Rj_1.transpose();
+        R_w_bi = Ri_1;
+        lamda_l = inv_dep_i_cam1;
+        debug_lamda_l = lamda_l; // debug
+
+        p_w_bi = Pi_1;
+        p_w_bj= Pj_1;
+    }
+
+#if two_cam_test
+        Vector3d P_b_c;
+        if (camera_id == 0) P_b_c = tic0;
+        else if (camera_id == 1) P_b_c = tic1;
+#else
+        Vector3d P_b_c = tic;
+#endif
+
+    // from rc matrix
+    Eigen::Matrix3d temp_top3 = (-1.0 * R_c_b * R_bj_w).transpose();
+    Eigen::Matrix3d temp_mid3 = (R_c_b * Utility::skewSymmetric(R_bj_w * (R_w_bi * (R_c_b.transpose() * 1.0 / lamda_l * pts_i + P_b_c) + p_w_bi - p_w_bj))).transpose();
+
+    // construct 9 x 3 matrix;
+    Eigen::MatrixXd temp_right_matrix(9,3);
+    temp_right_matrix.setZero();
+    temp_right_matrix.block<3,3>(0,0) = temp_top3;
+    temp_right_matrix.block<3,3>(3,0) = temp_mid3;
+
+    // construct 2 x 9 matrix;
+    Eigen::MatrixXd rc_Matrix(2,9);
+    rc_Matrix.setZero();
+    rc_Matrix = reduce * temp_right_matrix.transpose();
+
+    // Bug - nan value
+    if (isnan((rc_Matrix.transpose() * rc_Matrix).trace()))
+    {
+      feature_index++;
+      continue;
+    }
+    // filter the value outside the 3rd standard derivatives
+// #if two_cam_test
+//         //if (pts_observability[camera_id].size() >2 && abs((rc_Matrix.transpose() * rc_Matrix).trace() - mean[camera_id]) > 3*stdev[camera_id])
+//         if (pts_all_observability.size() > 2 && abs((rc_Matrix.transpose() * rc_Matrix).trace() - all_mean) > 3*all_stdev)
+// #endif
+//     {
+//       feature_index++;
+//       continue;
+//     }
+    // if((rc_Matrix.transpose() * rc_Matrix).trace() < all_mean)
+    // {
+    //     num_filted_point++;
+    //     feature_index++;
+    //     continue;
+    // }
+#if two_cam_test
+        sameId_pts[camera_id].push_back(make_pair(feature_id, cv::Point2f(image.find(feature_id)->second[0].second(3,0), image.find(feature_id)->second[0].second(4,0))));
+        pts_observability[camera_id].push_back((rc_Matrix.transpose() * rc_Matrix).trace());
+        // pts_all_observability.push_back((rc_Matrix.transpose() * rc_Matrix).trace());
+#else
+        sameId_pts.push_back(make_pair(feature_id, cv::Point2f(image.find(feature_id)->second[0].second(3,0), image.find(feature_id)->second[0].second(4,0))));
+        pts_observability.push_back((rc_Matrix.transpose() * rc_Matrix).trace());
+#endif
+    it_per_id.feature_per_frame[it_per_id.feature_per_frame.size() - 1].obs_value = (rc_Matrix.transpose() * rc_Matrix).trace();
+
+    // save the current standard derivatives
+#if two_cam_test
+        
+        double sum = accumulate(pts_observability[camera_id].begin(), pts_observability[camera_id].end(), 0.0);
+        mean[camera_id] = sum / pts_observability[camera_id].size();
+        vector<double> diff(pts_observability[camera_id].size());
+        transform(pts_observability[camera_id].begin(), pts_observability[camera_id].end(), diff.begin(), bind2nd(minus<double>(), mean[camera_id]));
+        double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+        stdev[camera_id] = std::sqrt(sq_sum / pts_observability[camera_id].size());
+        
+        // for pointwise method 
+        
+        // obs_sum = accumulate(pts_all_observability.begin(), pts_all_observability.end(), 0.0);
+        // all_mean = obs_sum / pts_all_observability.size();
+        // vector<double> diff_all(pts_all_observability.size());
+        // transform(pts_all_observability.begin(), pts_all_observability.end(), diff_all.begin(), bind2nd(minus<double>(), all_mean));
+        // double sq_all_sum = inner_product(diff_all.begin(), diff_all.end(), diff_all.begin(), 0.0);
+        // all_stdev = std::sqrt(sq_all_sum / pts_all_observability.size());
+    
+        H[camera_id].block<2,9>((2 * tracked_feature_num[camera_id]),0) = rc_Matrix;
+        tracked_feature_num[camera_id]++;
+        // H_all.block<2,9>((2 * tracked_all_feature_num),0) = rc_Matrix;
+        tracked_all_feature_num ++;
+        feature_index++;
+        
+#else
+        //double sum = accumulate(pts_observability.begin(), pts_observability.end(), 0.0);
+        mean = sum / pts_observability.size();
+        vector<double> diff(pts_observability.size());
+        transform(pts_observability.begin(), pts_observability.end(), diff.begin(), bind2nd(minus<double>(), mean));
+        double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
+        stdev = std::sqrt(sq_sum / pts_observability.size());
+
+        H.block<2,9>((2 * tracked_feature_num),0) = rc_Matrix;
+        tracked_feature_num++;
+        feature_index++;
+#endif
+  }
+#if two_cam_test
+
+    for (int i = 0; i <NUM_OF_CAM ; i++)
+    {
+        MatrixXd CostFunction(9,9);
+        VectorXd diagonal;
+        CostFunction = H[i].transpose() * H[i] / tracked_feature_num[i];
+        Observation_matrix_trace[i] = CostFunction.trace();
+    }
+    if (Observation_matrix_trace[0] >= Observation_matrix_trace[1])
+        double2vector_init(0);
+    else
+        double2vector_init(1);
+#else
+    MatrixXd CostFunction(9,9);
+    CostFunction = H.transpose() * H / tracked_feature_num;
+    Observation_matrix_trace = CostFunction.trace();
+#endif
+}

@@ -53,7 +53,7 @@ class Estimator
     void double2vector();
     //two camera init 
     void vector2double_init();
-    void double2vector_init();
+    void double2vector_init(int camera_id);
     void estimate_diff();
 
     bool failureDetection();
@@ -61,7 +61,7 @@ class Estimator
     // obs_control
     void obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
     // select camera for initialization 
-    void obs_trace_init(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header,int camera_id);
+    void obs_check(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const std_msgs::Header &header);
 
 
     void obs_optimization();
