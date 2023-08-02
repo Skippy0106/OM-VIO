@@ -380,7 +380,6 @@ bool Estimator::initialStructure()
                 }
             }
         }
-        ROS_INFO(" Check poiint 3");
         cv::Mat K_0 = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         cv::Mat K_1 = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
         if (pts_3_vector_cam0.size() < 6 || pts_3_vector_cam1.size() < 6)
@@ -588,11 +587,10 @@ void Estimator::solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<doub
     if (solver_flag == NON_LINEAR)
     {
         TicToc t_tri;
-
         f_manager.triangulate(Ps, tic, ric);
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
         //        std::cout << "=================== optimization ===================" << std::endl;
-        optimization();
+        //optimization();
         obs_trace(image, header);
         //        std::cout << "=================== optimization_obs ===================" << std::endl;
         optimization_obs();
@@ -1813,6 +1811,7 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 
     // 把f_manager中這一貞image有出現的image feature都提取出來存在tracked_feature
     // current image
+    vector2double();
     list<FeaturePerId> tracked_feature;
     for (auto &it_pts : image)
     {
@@ -1882,8 +1881,8 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
         Matrix3d Ri = Qi.toRotationMatrix();
         Matrix3d Rj = Qj.toRotationMatrix();
 
-        double inv_dep_i = para_Feature[feature_index][0];
-
+        // double inv_dep_i = para_Feature[feature_index][0];
+        double inv_dep_i = 1;
         Vector3d pts_camera_i = pts_i / inv_dep_i;
 #if two_cam_test
         Vector3d pts_imu_i;
@@ -1977,12 +1976,6 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
             feature_index++;
             continue;
         }
-        // if((rc_Matrix.transpose() * rc_Matrix).trace() < all_mean)
-        // {
-        //     num_filted_point++;
-        //     feature_index++;
-        //     continue;
-        // }
 #if two_cam_test
         sameId_pts[camera_id].push_back(make_pair(feature_id, cv::Point2f(image.find(feature_id)->second[0].second(3, 0), image.find(feature_id)->second[0].second(4, 0))));
         // pts_observability[camera_id].push_back((rc_Matrix.transpose() * rc_Matrix).trace());
@@ -1995,14 +1988,6 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 
         // save the current standard derivatives
 #if two_cam_test
-        /*
-        double sum = accumulate(pts_observability[camera_id].begin(), pts_observability[camera_id].end(), 0.0);
-        mean[camera_id] = sum / pts_observability[camera_id].size();
-        vector<double> diff(pts_observability[camera_id].size());
-        transform(pts_observability[camera_id].begin(), pts_observability[camera_id].end(), diff.begin(), bind2nd(minus<double>(), mean[camera_id]));
-        double sq_sum = inner_product(diff.begin(), diff.end(), diff.begin(), 0.0);
-        stdev[camera_id] = std::sqrt(sq_sum / pts_observability[camera_id].size());
-        */
         // for pointwise method
 
         obs_sum = accumulate(pts_all_observability.begin(), pts_all_observability.end(), 0.0);
@@ -2012,8 +1997,6 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
         double sq_all_sum = inner_product(diff_all.begin(), diff_all.end(), diff_all.begin(), 0.0);
         all_stdev = std::sqrt(sq_all_sum / pts_all_observability.size());
 
-        // H[camera_id].block<2,9>((2 * tracked_feature_num[camera_id]),0) = rc_Matrix;
-        // tracked_feature_num[camera_id]++;
         H_all.block<2, 9>((2 * tracked_all_feature_num), 0) = rc_Matrix;
         tracked_all_feature_num++;
         feature_index++;
@@ -2032,16 +2015,8 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 #endif
     }
 #if two_cam_test
-    /*
-        for (int i = 0; i <NUM_OF_CAM ; i++)
-        {
-            MatrixXd CostFunction(9,9);
-            VectorXd diagonal;
-            CostFunction = H[i].transpose() * H[i] / tracked_feature_num[i];
-            Observation_matrix_trace[i] = CostFunction.trace();
-        }
-        */
     // for pointwise method
+    double2vector();
     MatrixXd CostFunction_all(9, 9);
     CostFunction_all = H_all.transpose() * H_all / tracked_all_feature_num;
     double OBS_ALL = CostFunction_all.trace();
