@@ -1811,7 +1811,7 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 
     // 把f_manager中這一貞image有出現的image feature都提取出來存在tracked_feature
     // current image
-    vector2double();
+    //vector2double();
     list<FeaturePerId> tracked_feature;
     for (auto &it_pts : image)
     {
@@ -1828,6 +1828,7 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 #if two_cam_test
     int tracked_feature_num[2] = {0};
     int tracked_all_feature_num = 0;
+    double2vector();
 #else
     int tracked_feature_num = 0; // the index is for H
 #endif
@@ -1857,7 +1858,7 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
         int imu_i = it_per_id.start_frame;
         int imu_j = it_per_id.endFrame();
         Vector3d pts_i = it_per_id.feature_per_frame[imu_i].point;
-        //    Vector3d pts_j = it_per_id.feature_per_frame[imu_j].point;
+        Vector3d pts_j = it_per_id.feature_per_frame[imu_j].point;
 
         Vector3d Pi(para_Pose[imu_i][0], para_Pose[imu_i][1], para_Pose[imu_i][2]);
         Quaterniond Qi(para_Pose[imu_i][6], para_Pose[imu_i][3], para_Pose[imu_i][4], para_Pose[imu_i][5]);
@@ -1883,34 +1884,37 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 
         // double inv_dep_i = para_Feature[feature_index][0];
         double inv_dep_i = 1;
+        double inv_dep_j = 1;
         Vector3d pts_camera_i = pts_i / inv_dep_i;
+        Vector3d pts_camera_j = pts_j / inv_dep_j;
+        
 #if two_cam_test
-        Vector3d pts_imu_i;
-        Vector3d pts_w;
-        Vector3d pts_imu_j;
-        Vector3d pts_camera_j;
-        if (camera_id == 0)
-        {
-            pts_imu_i = qic0 * pts_camera_i + tic0;
-            pts_w = Qi * pts_imu_i + Pi;
-            pts_imu_j = Qj.inverse() * (pts_w - Pj);
-            pts_camera_j = qic0.inverse() * (pts_imu_j - tic0);
-        }
-        else if (camera_id == 1)
-        {
-            pts_imu_i = qic1 * pts_camera_i + tic1;
-            pts_w = Qi * pts_imu_i + Pi;
-            pts_imu_j = Qj.inverse() * (pts_w - Pj);
-            pts_camera_j = qic1.inverse() * (pts_imu_j - tic1);
-        }
+        // Vector3d pts_imu_i;
+        // Vector3d pts_w;
+        // Vector3d pts_imu_j;
+        // Vector3d pts_camera_j;
+        // if (camera_id == 0)
+        // {
+        //     pts_imu_i = qic0 * pts_camera_i + tic0;
+        //     pts_w = Qi * pts_imu_i + Pi;
+        //     pts_imu_j = Qj.inverse() * (pts_w - Pj);
+        //     pts_camera_j = qic0.inverse() * (pts_imu_j - tic0);
+        // }
+        // else if (camera_id == 1)
+        // {
+        //     pts_imu_i = qic1 * pts_camera_i + tic1;
+        //     pts_w = Qi * pts_imu_i + Pi;
+        //     pts_imu_j = Qj.inverse() * (pts_w - Pj);
+        //     pts_camera_j = qic1.inverse() * (pts_imu_j - tic1);
+        // }
 #else
         Vector3d pts_imu_i = qic * pts_camera_i + tic;
         Vector3d pts_w = Qi * pts_imu_i + Pi;
         Vector3d pts_imu_j = Qj.inverse() * (pts_w - Pj);
         Vector3d pts_camera_j = qic.inverse() * (pts_imu_j - tic);
 #endif
-        double dep_j = pts_camera_j.z();
-
+        //double dep_j = pts_camera_j.z();
+        double dep_j = 1;
         // 不知道為什麼會有 dep_j = 0
         //    if(dep_j == 0.0)
         //      continue;
@@ -2014,9 +2018,10 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
         feature_index++;
 #endif
     }
+    vector2double();
 #if two_cam_test
     // for pointwise method
-    double2vector();
+    //double2vector();
     MatrixXd CostFunction_all(9, 9);
     CostFunction_all = H_all.transpose() * H_all / tracked_all_feature_num;
     double OBS_ALL = CostFunction_all.trace();
