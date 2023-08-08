@@ -587,13 +587,20 @@ void Estimator::solveOdometry(const map<int, vector<pair<int, Eigen::Matrix<doub
     if (solver_flag == NON_LINEAR)
     {
         TicToc t_tri;
+        auto start_time = std::chrono::high_resolution_clock::now();
         f_manager.triangulate(Ps, tic, ric);
         ROS_DEBUG("triangulation costs %f", t_tri.toc());
         //        std::cout << "=================== optimization ===================" << std::endl;
         //optimization();
+        vector2double();
         obs_trace(image, header);
+        double2vector();
         //        std::cout << "=================== optimization_obs ===================" << std::endl;
         optimization_obs();
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> time_taken = end_time - start_time;
+        double seconds_taken = time_taken.count();
+        std::cout << "Time taken: " << seconds_taken << " seconds" << std::endl;
     }
 }
 
@@ -1185,7 +1192,7 @@ void Estimator::optimization()
     ceres::Solver::Options options;
 
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.num_threads = 6;
+    options.num_threads = 2;
     options.trust_region_strategy_type = ceres::DOGLEG;
     options.max_num_iterations = NUM_ITERATIONS;
     // options.use_explicit_schur_complement = true;
@@ -1400,7 +1407,7 @@ void Estimator::optimization_obs()
     ceres::Solver::Options options;
 
     options.linear_solver_type = ceres::DENSE_SCHUR;
-    options.num_threads = 6;
+    options.num_threads = 2;
     options.trust_region_strategy_type = ceres::DOGLEG;
     options.max_num_iterations = NUM_ITERATIONS;
     // options.use_explicit_schur_complement = true;
@@ -1828,7 +1835,6 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
 #if two_cam_test
     int tracked_feature_num[2] = {0};
     int tracked_all_feature_num = 0;
-    double2vector();
 #else
     int tracked_feature_num = 0; // the index is for H
 #endif
@@ -2018,7 +2024,6 @@ void Estimator::obs_trace(const map<int, vector<pair<int, Eigen::Matrix<double, 
         feature_index++;
 #endif
     }
-    vector2double();
 #if two_cam_test
     // for pointwise method
     //double2vector();

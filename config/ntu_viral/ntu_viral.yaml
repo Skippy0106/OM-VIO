@@ -53,7 +53,7 @@ fisheye: 0              # if using fisheye, trun on it. A circle mask will be lo
 #optimization parameters
 max_solver_time: 0.04  # max solver itration time (ms), to guarantee real time
 max_num_iterations: 8   # max solver itrations, to guarantee real time
-keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
+keyframe_parallax: 15.0 # keyframe selection threshold (pixel)
 
 #imu parameters       The more accurate parameters you provide, the better performance
 acc_n: 0.08          # accelerometer measurement noise standard deviation. #0.2   0.04

@@ -38,7 +38,7 @@ body_T_cam1: !!opencv-matrix
            0.00000000,  0.00000000,  0.00000000,  1.00000000 ]
 
 #feature traker paprameters
-max_cnt: 180            # max feature number in feature tracking
+max_cnt: 150            # max feature number in feature tracking
 min_dist: 30            # min distance between two features 
 freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
 F_threshold: 1.0        # ransac threshold (pixel)
@@ -48,7 +48,7 @@ fisheye: 0              # if using fisheye, trun on it. A circle mask will be lo
 
 #optimization parameters
 max_solver_time: 0.08  # max solver itration time (ms), to guarantee real time
-max_num_iterations: 16   # max solver itrations, to guarantee real time
+max_num_iterations: 12   # max solver itrations, to guarantee real time
 keyframe_parallax: 10.0 # keyframe selection threshold (pixel)
 
 #imu parameters       The more accurate parameters you provide, the better performance
